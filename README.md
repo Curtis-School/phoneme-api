@@ -9,6 +9,7 @@ in this project — every route returns JSON.
 npm install                 # also runs `prisma generate` via postinstall
 cp .env.example .env
 npm run db:migrate          # applies migrations, creates prisma/dev.db
+npm run db:seed             # loads the phoneme dataset
 npm run dev                 # http://localhost:3001
 ```
 
@@ -24,6 +25,8 @@ npm run lint
 
 npm run db:migrate # create + apply a migration in development
 npm run db:deploy  # apply existing migrations (used in Docker / CI)
+npm run db:seed    # load the phoneme dataset (safe to re-run)
+npm run db:reset   # drop, re-migrate and re-seed (prompts before destroying data)
 npm run db:studio  # browse the database in Prisma Studio
 ```
 
@@ -43,7 +46,28 @@ never be split by string indexing.
 | `Activity` | A saved Wordle / Word Search configuration and its output settings. |
 | `ActivityExport` | Audit record of a generated HTML activity. |
 
-Two things to know before editing the schema:
+### Seed data
+
+`prisma/seed-data/phoneme-word-list.json` is the Assessment 1 dataset, copied across
+unchanged. It is denormalised — every word inlines its full phoneme objects — so
+`prisma/seed.ts` flattens it into the relational model:
+
+| Rows | Source |
+| --- | --- |
+| 43 phonemes | `phonemeInventory` |
+| 105 words / 413 ordered phoneme links | distinct words across both activity types |
+| 46 word lists / 461 items | one per phoneme, plus one per Wordle difficulty tier |
+| 6 activities | 3 Wordle + 3 Word Search starters |
+
+The seed is idempotent — it upserts on natural keys (`ipa`, `english`, `name`) and rebuilds
+ordered child rows, so `npm run db:seed` can be run repeatedly.
+
+Three things to know before editing the schema:
+
+- **The seed command is configured in `prisma.config.ts`** under `migrations.seed`. Prisma 7
+  no longer reads the `"prisma": { "seed": ... }` key from `package.json`. Note that
+  `prisma migrate reset` does **not** run the seed automatically, which is why `db:reset`
+  chains `prisma db seed` explicitly.
 
 - **The datasource URL lives in `prisma.config.ts`, not `schema.prisma`.** Prisma 7 moved
   it out of the schema, so the `datasource` block has no `url` field.
@@ -65,8 +89,21 @@ const phonemes = await prisma.phoneme.findMany();
 
 | Method | Path           | Description                                  |
 | ------ | -------------- | -------------------------------------------- |
-| `GET`  | `/api/health`  | Liveness check — status, timestamp, uptime.  |
-| `GET`  | `/`            | Rewritten to `/api/health` (URL unchanged).  |
+| `GET`  | `/health`      | Health check — `200` when the database answers, `503` when it does not. |
+| `GET`  | `/`            | Rewritten to `/health` (URL unchanged).                                 |
+
+`/health` sits at the root rather than under `/api`, which is reserved for the CRUD
+endpoints.
+
+```json
+{
+  "service": "phoneme-api",
+  "timestamp": "2026-08-16T05:23:38.764Z",
+  "uptime": 1,
+  "status": "ok",
+  "database": "connected"
+}
+```
 
 Endpoints for phonemes, words, word lists and activities land in following branches.
 
@@ -74,16 +111,18 @@ Endpoints for phonemes, words, word lists and activities land in following branc
 
 ```
 app/
-  api/
-    health/route.ts   # GET /api/health
+  health/route.ts     # GET /health
+  api/                # CRUD endpoints
 lib/
   prisma.ts           # shared PrismaClient singleton
   generated/prisma/   # generated client (git-ignored)
 prisma/
   schema.prisma       # data model
   migrations/         # versioned SQL migrations
-prisma.config.ts      # datasource url + migration paths (Prisma 7)
-next.config.ts        # rewrites / -> /api/health
+  seed.ts             # loads seed-data into the relational model
+  seed-data/          # phoneme dataset carried over from Assessment 1
+prisma.config.ts      # datasource url, migration paths, seed command (Prisma 7)
+next.config.ts        # rewrites / -> /health
 ```
 
 New endpoints are `route.ts` files under `app/api/`, exporting the HTTP methods they

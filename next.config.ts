@@ -4,7 +4,8 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       // No UI routes live here — serve the health check at the root.
-      { source: "/", destination: "/api/health" },
+      // /api/* is reserved for the CRUD endpoints.
+      { source: "/", destination: "/health" },
     ];
   },
 };

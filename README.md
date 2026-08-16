@@ -3,13 +3,62 @@
 Backend API for **phoneme-wordle**, built on Next.js 16 Route Handlers. There is no UI
 in this project — every route returns JSON.
 
+## Getting started
+
+```bash
+npm install                 # also runs `prisma generate` via postinstall
+cp .env.example .env
+npm run db:migrate          # applies migrations, creates prisma/dev.db
+npm run dev                 # http://localhost:3001
+```
+
+The API runs on **port 3001** — `phoneme-wordle` (the frontend) owns 3000.
+
 ## Development
 
 ```bash
-npm run dev     # http://localhost:3000
-npm run build   # production build
-npm start       # serve the production build
+npm run dev        # http://localhost:3001
+npm run build      # production build
+npm start          # serve the production build on 3001
 npm run lint
+
+npm run db:migrate # create + apply a migration in development
+npm run db:deploy  # apply existing migrations (used in Docker / CI)
+npm run db:studio  # browse the database in Prisma Studio
+```
+
+## Database
+
+SQLite via **Prisma 7**. The data model treats phonemes as rows rather than characters,
+because IPA symbols such as `/θ/` and `/eː/` occupy more than one character space and must
+never be split by string indexing.
+
+| Model | Purpose |
+| --- | --- |
+| `Phoneme` | One speech sound — IPA symbol, display label, hover hint, English grapheme. |
+| `Word` | An English word, optionally with a teacher-authored hint. |
+| `WordPhoneme` | Ordered join placing phonemes in sequence within a word (`position`). |
+| `WordList` | A named collection of words, optionally focused on one target phoneme. |
+| `WordListItem` | Membership of a word in a list, with the teacher's ordering. |
+| `Activity` | A saved Wordle / Word Search configuration and its output settings. |
+| `ActivityExport` | Audit record of a generated HTML activity. |
+
+Two things to know before editing the schema:
+
+- **The datasource URL lives in `prisma.config.ts`, not `schema.prisma`.** Prisma 7 moved
+  it out of the schema, so the `datasource` block has no `url` field.
+- **Prisma does not support `enum` on SQLite.** `Activity.type`, `Activity.difficulty` and
+  `Activity.symbolDisplay` are `String` columns; their allowed values are enforced in the
+  API layer, not by the database.
+
+The generated client is written to `lib/generated/prisma` and is **git-ignored** — it is
+recreated by `npm install`. Import the shared singleton from `@/lib/prisma`, never
+construct a `PrismaClient` directly:
+
+```ts
+import { prisma } from "@/lib/prisma";
+
+const phonemes = await prisma.phoneme.findMany();
 ```
 
 ## Endpoints
@@ -19,12 +68,21 @@ npm run lint
 | `GET`  | `/api/health`  | Liveness check — status, timestamp, uptime.  |
 | `GET`  | `/`            | Rewritten to `/api/health` (URL unchanged).  |
 
+Endpoints for phonemes, words, word lists and activities land in following branches.
+
 ## Structure
 
 ```
 app/
   api/
     health/route.ts   # GET /api/health
+lib/
+  prisma.ts           # shared PrismaClient singleton
+  generated/prisma/   # generated client (git-ignored)
+prisma/
+  schema.prisma       # data model
+  migrations/         # versioned SQL migrations
+prisma.config.ts      # datasource url + migration paths (Prisma 7)
 next.config.ts        # rewrites / -> /api/health
 ```
 

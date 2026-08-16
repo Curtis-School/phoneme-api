@@ -1,0 +1,154 @@
+// Phoneme API — data model.
+//
+// Phonemes are keyed by their IPA symbol
+// (/θ/, /eː/), and a word is an *ordered join* onto those rows rather than a string that
+// would have to be split by character. Multi-codepoint symbols cannot be corrupted.
+//
+// Note: the datasource URL is configured in prisma.config.ts (Prisma 7), not here.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+/// A single speech sound in the Australian English phonemic inventory.
+model Phoneme {
+  id        Int      @id @default(autoincrement())
+  /// IPA symbol including slashes, e.g. "/θ/". May be multiple codepoints.
+  ipa       String   @unique
+  /// Short display label shown on a tile, e.g. "TH".
+  label     String
+  /// Hover hint, e.g. "as in thin".
+  example   String
+  /// Closest English grapheme(s), e.g. "th".
+  english   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  words      WordPhoneme[]
+  wordLists  WordList[]    @relation("ListTargetPhoneme")
+  activities Activity[]    @relation("ActivityTargetPhoneme")
+}
+
+/// An English word that can appear in an activity, e.g. "thin".
+model Word {
+  id        Int      @id @default(autoincrement())
+  english   String   @unique
+  /// Optional teacher-authored clue shown alongside the word.
+  hint      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  phonemes  WordPhoneme[]
+  listItems WordListItem[]
+}
+
+/// Ordered phoneme sequence for a word: thin = /θ/ /ɪ/ /n/.
+model WordPhoneme {
+  id        Int @id @default(autoincrement())
+  wordId    Int
+  phonemeId Int
+  /// Zero-based index of this phoneme within the word.
+  position  Int
+
+  word    Word    @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  phoneme Phoneme @relation(fields: [phonemeId], references: [id], onDelete: Restrict)
+
+  @@unique([wordId, position])
+  @@index([phonemeId])
+}
+
+/// A named collection of words a teacher can build activities from.
+model WordList {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String?
+  /// Set when the list is built around one sound, e.g. a "/θ/ words" list.
+  targetPhonemeId Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  targetPhoneme Phoneme?       @relation("ListTargetPhoneme", fields: [targetPhonemeId], references: [id], onDelete: SetNull)
+  items         WordListItem[]
+  activities    Activity[]
+
+  @@index([targetPhonemeId])
+}
+
+/// Membership of a word in a word list, with the teacher's chosen ordering.
+model WordListItem {
+  id         Int @id @default(autoincrement())
+  wordListId Int
+  wordId     Int
+  position   Int
+
+  wordList WordList @relation(fields: [wordListId], references: [id], onDelete: Cascade)
+  word     Word     @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@unique([wordListId, wordId])
+  @@unique([wordListId, position])
+  @@index([wordId])
+}
+
+/// A saved, reusable activity configuration. Many may exist per word list.
+///
+/// `type`, `difficulty` and `symbolDisplay` are String columns because Prisma does not
+/// support enums on SQLite. Allowed values are enforced by Zod at the API boundary and
+/// by the shared constants in lib/constants.ts — never rely on the database to reject them.
+model Activity {
+  id         Int    @id @default(autoincrement())
+  name       String
+  /// "wordle" | "word_search"
+  type       String
+  /// "easy" | "medium" | "hard"
+  difficulty String
+  wordListId Int
+
+  // --- Wordle settings ---
+  maxGuesses Int?
+  /// Phoneme count of the target word; picks which words in the list are eligible.
+  wordLength Int?
+
+  // --- Word Search settings ---
+  targetPhonemeId Int?
+  gridSize        Int?
+  /// The grid is fully reproducible from (words, size, fillers, seed), so only the
+  /// seed is stored rather than a materialised grid.
+  seed            Int?
+  wordCount       Int?
+
+  // --- Shared output settings ---
+  /// "ipa" | "english"
+  symbolDisplay String  @default("ipa")
+  showTooltips  Boolean @default(true)
+  theme         String  @default("light")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  wordList      WordList         @relation(fields: [wordListId], references: [id], onDelete: Restrict)
+  targetPhoneme Phoneme?         @relation("ActivityTargetPhoneme", fields: [targetPhonemeId], references: [id], onDelete: SetNull)
+  exports       ActivityExport[]
+
+  @@unique([name, type])
+  @@index([wordListId])
+  @@index([targetPhonemeId])
+}
+
+/// Audit record of a downloadable HTML activity that was generated.
+model ActivityExport {
+  id          Int      @id @default(autoincrement())
+  activityId  Int
+  filename    String
+  /// Seed actually used, so a previously generated file can be reproduced exactly.
+  seed        Int?
+  generatedAt DateTime @default(now())
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@index([activityId])
+}

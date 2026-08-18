@@ -30,13 +30,7 @@ export const GET = withErrorHandling(async (_request: Request, ctx: Context) => 
   return ok(serializeWord(word));
 });
 
-/**
- * PATCH /api/words/:id
- *
- * Supplying `phonemes` replaces the entire sequence. The old rows are deleted and
- * rewritten inside one transaction because `position` is unique per word — updating in
- * place would collide with the rows still occupying those positions.
- */
+/** PATCH /api/words/:id */
 export const PATCH = withErrorHandling(async (request: Request, ctx: Context) => {
   const id = await readId(ctx);
   const { english, hint, phonemes } = await parseJsonBody(request, wordUpdateSchema);

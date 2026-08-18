@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { created, ok, parseJsonBody, withErrorHandling } from "@/lib/http";
 import { resolvePhonemeIds, serializeWord, wordInclude } from "@/lib/words";
-import { wordCreateSchema, wordListQuerySchema } from "@/lib/validation";
+import { wordCreateSchema, wordsQuerySchema } from "@/lib/validation";
 
 /**
  * GET /api/words
@@ -12,7 +12,7 @@ import { wordCreateSchema, wordListQuerySchema } from "@/lib/validation";
  */
 export const GET = withErrorHandling(async (request: Request) => {
   const { searchParams } = new URL(request.url);
-  const { search, phoneme, length } = wordListQuerySchema.parse({
+  const { search, phoneme, length } = wordsQuerySchema.parse({
     search: searchParams.get("search") ?? undefined,
     phoneme: searchParams.get("phoneme") ?? undefined,
     length: searchParams.get("length") ?? undefined,

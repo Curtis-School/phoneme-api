@@ -77,3 +77,27 @@ export async function resolvePhonemeIds(ipas: string[]): Promise<number[]> {
 
   return ipas.map((ipa) => idByIpa.get(ipa)!);
 }
+
+/**
+ * Maps English spellings onto word ids, preserving the caller's order.
+ */
+export async function resolveWordIds(englishWords: string[]): Promise<number[]> {
+  const known = await prisma.word.findMany({
+    where: { english: { in: englishWords } },
+    select: { id: true, english: true },
+  });
+
+  const idByEnglish = new Map(known.map((word) => [word.english, word.id] as const));
+  const unknown = [...new Set(englishWords.filter((word) => !idByEnglish.has(word)))];
+
+  if (unknown.length > 0) {
+    throw new ApiError(
+      400,
+      "VALIDATION_ERROR",
+      `Unknown word(s): ${unknown.join(", ")}. Create them first via POST /api/words.`,
+      { unknownWords: unknown },
+    );
+  }
+
+  return englishWords.map((word) => idByEnglish.get(word)!);
+}

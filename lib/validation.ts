@@ -1,14 +1,6 @@
 import { z } from "zod";
 
-/**
- * Request schemas. Every write goes through one of these before it reaches Prisma.
- *
- * IPA symbols are validated as non-empty trimmed strings rather than by character
- * length: a phoneme such as /eː/ or /ɑe/ occupies several code points, so any rule
- * expressed in single characters would wrongly reject valid data.
- */
-
-/** Trimmed, non-empty string with an upper bound to keep obvious junk out of the database. */
+/** Request schemas validation. */
 const text = (max = 200) =>
   z
     .string()
@@ -28,8 +20,7 @@ export const phonemeCreateSchema = z.object({
   english: text(16),
 });
 
-// Every field optional for PATCH, but at least one must be present — otherwise the
-// request is a silent no-op and the caller has no way to tell.
+// Every field optional for PATCH, but at least one must be present
 export const phonemeUpdateSchema = phonemeCreateSchema
   .partial()
   .refine((value) => Object.keys(value).length > 0, {
@@ -65,7 +56,7 @@ export const wordUpdateSchema = z
     error: "Provide at least one field to update.",
   });
 
-export const wordListQuerySchema = z.object({
+export const wordsQuerySchema = z.object({
   search: z.string().trim().min(1).max(120).optional(),
   /** Filter to words containing this IPA symbol, e.g. ?phoneme=/θ/ */
   phoneme: z.string().trim().min(1).max(16).optional(),
@@ -80,6 +71,50 @@ export const wordListQuerySchema = z.object({
 
 export type WordCreateInput = z.infer<typeof wordCreateSchema>;
 export type WordUpdateInput = z.infer<typeof wordUpdateSchema>;
+
+/**
+ * Ordered membership for a word list, given as English spellings.
+ *
+ * Duplicates are rejected.
+ */
+const wordMembership = z
+  .array(text(60))
+  .max(200, "a list may hold 200 words or fewer")
+  .refine(
+    (words) => new Set(words).size === words.length,
+    { error: "must not contain duplicate words" },
+  );
+
+export const wordListCreateSchema = z.object({
+  name: text(80),
+  description: text(300).nullish(),
+  /** IPA symbol of the sound this list is built around, e.g. "/θ/". */
+  targetPhoneme: text(16).nullish(),
+  words: wordMembership.optional(),
+});
+
+// `words` replaces the whole membership when present — the same all-or-nothing rule as
+// a word's phoneme sequence, and for the same reason: positions must stay contiguous.
+export const wordListUpdateSchema = z
+  .object({
+    name: text(80),
+    description: text(300).nullish(),
+    targetPhoneme: text(16).nullish(),
+    words: wordMembership,
+  })
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, {
+    error: "Provide at least one field to update.",
+  });
+
+export const wordListQuerySchema = z.object({
+  search: z.string().trim().min(1).max(120).optional(),
+  /** Filter to lists built around this IPA symbol. */
+  phoneme: z.string().trim().min(1).max(16).optional(),
+});
+
+export type WordListCreateInput = z.infer<typeof wordListCreateSchema>;
+export type WordListUpdateInput = z.infer<typeof wordListUpdateSchema>;
 
 export type PhonemeCreateInput = z.infer<typeof phonemeCreateSchema>;
 export type PhonemeUpdateInput = z.infer<typeof phonemeUpdateSchema>;

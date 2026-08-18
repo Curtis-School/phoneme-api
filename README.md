@@ -151,7 +151,34 @@ Two behaviours worth knowing:
   unique per word, so the old rows are deleted and rewritten inside one transaction —
   a failure part-way (a duplicate `english`, say) rolls the sequence back untouched.
 
-Endpoints for word lists and activities land in following branches.
+### Word lists
+
+| Method   | Path                   | Description                                                    |
+| -------- | ---------------------- | -------------------------------------------------------------- |
+| `GET`    | `/api/word-lists`      | Summaries — name, target sound, word and activity counts.       |
+| `POST`   | `/api/word-lists`      | Create a list, optionally populated in the same call.           |
+| `GET`    | `/api/word-lists/:id`  | The list with its words in order, each with its phonemes.       |
+| `PATCH`  | `/api/word-lists/:id`  | Update name, description, target phoneme, and/or membership.    |
+| `DELETE` | `/api/word-lists/:id`  | `204`, or `409` while an activity still uses the list.          |
+
+Filters: `?search=` (name or description), `?phoneme=/s/` (lists built around that sound).
+
+The collection returns summaries rather than full word data — loading every word for all
+46 seeded lists would mean several hundred rows and their phoneme sequences on a request
+that only needs names and counts. Fetch a single list to get its words.
+
+Words are referenced by spelling and the target sound by IPA symbol, matching the rest of
+the API — callers never handle database ids:
+
+```jsonc
+// POST /api/word-lists
+{
+  "name": "TH practice",
+  "description": "Week 3 homework",
+  "targetPhoneme": "/θ/",
+  "words": ["thin", "thrust"]
+}
+```
 
 ## Errors
 
@@ -194,7 +221,8 @@ app/
   api/                # CRUD endpoints
 lib/
   prisma.ts           # shared PrismaClient singleton
-  words.ts            # word serialisation + IPA resolution
+  words.ts            # word serialisation + IPA/spelling resolution
+  word-lists.ts       # word-list serialisation + target phoneme resolution
   http.ts             # response envelope + error mapping
   validation.ts       # Zod request schemas
   constants.ts        # allowed values for the String "enum" columns

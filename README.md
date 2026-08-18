@@ -105,7 +105,50 @@ endpoints.
 }
 ```
 
-Endpoints for phonemes, words, word lists and activities land in following branches.
+### Phonemes
+
+| Method   | Path                  | Description                                              |
+| -------- | --------------------- | -------------------------------------------------------- |
+| `GET`    | `/api/phonemes`       | Full inventory. `?search=` matches ipa, label, english or example. |
+| `POST`   | `/api/phonemes`       | Add a phoneme. `201` on success.                          |
+| `GET`    | `/api/phonemes/:id`   | One phoneme, including how many words use it.             |
+| `PATCH`  | `/api/phonemes/:id`   | Partial update; at least one field required.              |
+| `DELETE` | `/api/phonemes/:id`   | `204` on success, `409` while any word still uses it.     |
+
+Endpoints for words, word lists and activities land in following branches.
+
+## Errors
+
+Every failure returns the same envelope, so callers branch on `code` rather than parsing
+prose:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Request body failed validation.",
+    "details": [{ "field": "ipa", "code": "too_small", "message": "must not be empty" }]
+  }
+}
+```
+
+| Status | Code                | Raised when                                                    |
+| ------ | ------------------- | -------------------------------------------------------------- |
+| `400`  | `VALIDATION_ERROR`  | A body or query parameter failed its Zod schema.                |
+| `400`  | `INVALID_JSON`      | The request body was not parseable JSON.                        |
+| `400`  | `INVALID_REFERENCE` | A foreign key pointed at a row that does not exist.             |
+| `404`  | `NOT_FOUND`         | The addressed record does not exist.                            |
+| `409`  | `CONFLICT`          | A unique column already holds that value.                       |
+| `409`  | `IN_USE`            | A delete was refused because dependent rows exist.              |
+| `500`  | `INTERNAL_ERROR`    | Anything unhandled. The detail is logged, never returned.       |
+
+Handlers are wrapped in `withErrorHandling` from `lib/http.ts`, which maps thrown
+`ApiError`s, Zod failures and Prisma error codes onto that table. Unhandled HTTP methods
+return `405` automatically.
+
+Validation lives in `lib/validation.ts`. Note that IPA symbols are validated as non-empty
+trimmed strings rather than by character count — `/eː/` and `/ɑe/` span several code
+points, so any single-character rule would reject valid data.
 
 ## Structure
 
@@ -115,6 +158,9 @@ app/
   api/                # CRUD endpoints
 lib/
   prisma.ts           # shared PrismaClient singleton
+  http.ts             # response envelope + error mapping
+  validation.ts       # Zod request schemas
+  constants.ts        # allowed values for the String "enum" columns
   generated/prisma/   # generated client (git-ignored)
 prisma/
   schema.prisma       # data model

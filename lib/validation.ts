@@ -40,5 +40,46 @@ export const phonemeListQuerySchema = z.object({
   search: z.string().trim().min(1).max(120).optional(),
 });
 
+export const wordCreateSchema = z.object({
+  english: text(60),
+  hint: text(200).nullish(),
+  phonemes: z
+    .array(text(16))
+    .min(1, "must contain at least one phoneme")
+    .max(20, "must contain 20 phonemes or fewer"),
+});
+
+// `phonemes` replaces the whole sequence when present — there is no partial reordering,
+// because positions are contiguous and a half-applied change would leave gaps.
+export const wordUpdateSchema = z
+  .object({
+    english: text(60),
+    hint: text(200).nullish(),
+    phonemes: z
+      .array(text(16))
+      .min(1, "must contain at least one phoneme")
+      .max(20, "must contain 20 phonemes or fewer"),
+  })
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, {
+    error: "Provide at least one field to update.",
+  });
+
+export const wordListQuerySchema = z.object({
+  search: z.string().trim().min(1).max(120).optional(),
+  /** Filter to words containing this IPA symbol, e.g. ?phoneme=/θ/ */
+  phoneme: z.string().trim().min(1).max(16).optional(),
+  /** Filter to words with exactly this many phonemes, e.g. ?length=3 */
+  length: z.coerce
+    .number({ error: "length must be a number" })
+    .int("length must be a whole number")
+    .positive("length must be positive")
+    .max(20)
+    .optional(),
+});
+
+export type WordCreateInput = z.infer<typeof wordCreateSchema>;
+export type WordUpdateInput = z.infer<typeof wordUpdateSchema>;
+
 export type PhonemeCreateInput = z.infer<typeof phonemeCreateSchema>;
 export type PhonemeUpdateInput = z.infer<typeof phonemeUpdateSchema>;

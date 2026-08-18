@@ -115,7 +115,43 @@ endpoints.
 | `PATCH`  | `/api/phonemes/:id`   | Partial update; at least one field required.              |
 | `DELETE` | `/api/phonemes/:id`   | `204` on success, `409` while any word still uses it.     |
 
-Endpoints for words, word lists and activities land in following branches.
+### Words
+
+| Method   | Path              | Description                                                        |
+| -------- | ----------------- | ------------------------------------------------------------------ |
+| `GET`    | `/api/words`      | All words with their ordered phonemes. Filters below.               |
+| `POST`   | `/api/words`      | Create a word from IPA symbols. `201` on success.                   |
+| `GET`    | `/api/words/:id`  | One word.                                                           |
+| `PATCH`  | `/api/words/:id`  | Update `english`, `hint`, and/or replace the phoneme sequence.       |
+| `DELETE` | `/api/words/:id`  | `204`. Phoneme links and word-list memberships cascade away with it. |
+
+Filters combine: `?search=` (spelling), `?phoneme=/s/` (contains that sound), `?length=3`
+(exact phoneme count).
+
+Words are written and read using IPA symbols, never phoneme ids:
+
+```jsonc
+// POST /api/words
+{ "english": "thumb", "hint": "on your hand", "phonemes": ["/θ/", "/ɐ/", "/m/"] }
+
+// response — the join table is flattened away
+{
+  "id": 106,
+  "english": "thumb",
+  "hint": "on your hand",
+  "phonemes": [{ "id": 12, "ipa": "/θ/", "label": "TH", "example": "as in thin", "english": "th" }, ...]
+}
+```
+
+Two behaviours worth knowing:
+
+- **An unknown symbol rejects the whole request** with `400` and names every offending
+  symbol at once, rather than failing on the first or silently dropping it.
+- **`phonemes` in a `PATCH` replaces the entire sequence.** Positions are contiguous and
+  unique per word, so the old rows are deleted and rewritten inside one transaction —
+  a failure part-way (a duplicate `english`, say) rolls the sequence back untouched.
+
+Endpoints for word lists and activities land in following branches.
 
 ## Errors
 
@@ -158,6 +194,7 @@ app/
   api/                # CRUD endpoints
 lib/
   prisma.ts           # shared PrismaClient singleton
+  words.ts            # word serialisation + IPA resolution
   http.ts             # response envelope + error mapping
   validation.ts       # Zod request schemas
   constants.ts        # allowed values for the String "enum" columns

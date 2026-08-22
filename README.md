@@ -180,6 +180,47 @@ the API — callers never handle database ids:
 }
 ```
 
+### Activities
+
+A saved Wordle or Word Search configuration. Many may point at the same word list.
+
+| Method   | Path                   | Description                                                     |
+| -------- | ---------------------- | ---------------------------------------------------------------- |
+| `GET`    | `/api/activities`      | Saved configurations. `?type=`, `?difficulty=`, `?wordListId=`.   |
+| `POST`   | `/api/activities`      | Save a new configuration. `201` on success.                       |
+| `GET`    | `/api/activities/:id`  | One activity.                                                     |
+| `PATCH`  | `/api/activities/:id`  | Partial update, re-validated as a whole.                          |
+| `DELETE` | `/api/activities/:id`  | `204`. Export history cascades away.                              |
+
+The body is discriminated on `type`, because the two activities need genuinely different
+settings:
+
+```jsonc
+// Wordle
+{ "type": "wordle", "name": "Week 3", "difficulty": "easy",
+  "wordListId": 44, "maxGuesses": 5, "wordLength": 3 }
+
+// Word Search
+{ "type": "word_search", "name": "TH hunt", "difficulty": "medium",
+  "wordListId": 22, "targetPhoneme": "/θ/", "gridSize": 8, "wordCount": 2, "seed": 7 }
+```
+
+Optional on both: `symbolDisplay` (`ipa` | `english`), `showTooltips`, `theme`.
+
+- Both variants are `.strict()` — sending `gridSize` on a Wordle is a `400`, not a
+  silently ignored field.
+- Responses carry only the settings that apply to that type. One row stores the columns
+  for both, but a Wordle response omits `gridSize` rather than returning a meaningless `null`.
+- `type` cannot be changed by `PATCH`; delete and recreate instead.
+- A `PATCH` is merged onto the stored row and re-validated against the create schema, so
+  an update is held to the same rules as a create.
+
+The configuration is also checked against its word list: a Wordle whose list holds no word
+of the required phoneme length, or a Word Search asking for more words than the list
+contains, is rejected with an explanatory `400`. This is fail-fast, not a guarantee — a
+list can be edited afterwards, so the generate endpoint must still handle a list that no
+longer supports its activity.
+
 ## Errors
 
 Every failure returns the same envelope, so callers branch on `code` rather than parsing
@@ -223,6 +264,7 @@ lib/
   prisma.ts           # shared PrismaClient singleton
   words.ts            # word serialisation + IPA/spelling resolution
   word-lists.ts       # word-list serialisation + target phoneme resolution
+  activities.ts       # activity serialisation + satisfiability checks
   http.ts             # response envelope + error mapping
   validation.ts       # Zod request schemas
   constants.ts        # allowed values for the String "enum" columns

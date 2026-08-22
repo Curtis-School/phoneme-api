@@ -4,6 +4,7 @@ import {
   noContent,
   ok,
   parseJsonBody,
+  plural,
   withErrorHandling,
 } from "@/lib/http";
 import { idParamSchema, phonemeUpdateSchema } from "@/lib/validation";
@@ -65,7 +66,7 @@ export const DELETE = withErrorHandling(async (_request: Request, ctx: Context) 
 
   if (phoneme._count.words > 0) {
     throw ApiError.inUse(
-      `Cannot delete ${phoneme.ipa} — it is used by ${phoneme._count.words} word(s).`,
+      `Cannot delete ${phoneme.ipa} — it is used by ${plural(phoneme._count.words, "word")}.`,
       { words: phoneme._count.words },
     );
   }

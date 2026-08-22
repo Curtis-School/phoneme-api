@@ -137,14 +137,18 @@ function toErrorResponse(error: unknown): Response {
     switch (error.code) {
       // Unique constraint violation.
       case "P2002": {
-        const fields = uniqueConstraintFields(error.meta).join(", ");
+        const fields = uniqueConstraintFields(error.meta);
+
+        if (fields.length === 0) {
+          return fail(409, "CONFLICT", "A record with those details already exists.");
+        }
 
         return fail(
           409,
           "CONFLICT",
-          fields
-            ? `A record with that ${fields} already exists.`
-            : "A record with those details already exists.",
+          fields.length === 1
+            ? `A record with that ${fields[0]} already exists.`
+            : `A record with that combination of ${formatList(fields)} already exists.`,
         );
       }
 
@@ -199,4 +203,25 @@ function uniqueConstraintFields(meta: unknown): string[] {
   return Array.isArray(fields)
     ? fields.filter((field): field is string => typeof field === "string")
     : [];
+}
+
+/**
+ * Pluralises a noun against a count, e.g. `plural(1, "activity", "activities")`.
+ *
+ * Error messages are read by teachers, not just developers, so "1 activity" beats
+ * "1 activity/activities". Irregular plurals are passed explicitly rather than guessed.
+ */
+export function plural(count: number, singular: string, pluralForm?: string) {
+  const word = count === 1 ? singular : (pluralForm ?? `${singular}s`);
+
+  return `${count} ${word}`;
+}
+
+/** Joins names for prose: "a", "a and b", "a, b and c". */
+function formatList(items: string[]) {
+  if (items.length < 2) {
+    return items.join("");
+  }
+
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }

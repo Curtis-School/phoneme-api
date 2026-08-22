@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+import {
+  ACTIVITY_TYPES,
+  DIFFICULTIES,
+  SYMBOL_DISPLAYS,
+  THEMES,
+} from "@/lib/constants";
+
 /** Request schemas validation. */
 const text = (max = 200) =>
   z
@@ -115,6 +122,87 @@ export const wordListQuerySchema = z.object({
 
 export type WordListCreateInput = z.infer<typeof wordListCreateSchema>;
 export type WordListUpdateInput = z.infer<typeof wordListUpdateSchema>;
+
+/**
+ * Activity settings, discriminated on `type`.
+ *
+ * A Wordle and a Word Search need genuinely different configuration, so the union
+ * enforces each shape independently instead of leaving every column optional and hoping
+ * callers fill in the right subset. Both members are `.strict()`, so sending `gridSize`
+ * on a Wordle is reported rather than silently dropped.
+ */
+const activityShared = {
+  name: text(80),
+  difficulty: z.enum(DIFFICULTIES),
+  wordListId: z
+    .number({ error: "wordListId must be a number" })
+    .int()
+    .positive(),
+  symbolDisplay: z.enum(SYMBOL_DISPLAYS).optional(),
+  showTooltips: z.boolean().optional(),
+  theme: z.enum(THEMES).optional(),
+};
+
+export const activityCreateSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("wordle"),
+      ...activityShared,
+      maxGuesses: z.number().int().min(1).max(12),
+      /** Phoneme count of the target word; decides which words in the list are eligible. */
+      wordLength: z.number().int().min(1).max(12),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("word_search"),
+      ...activityShared,
+      /** IPA symbol of the sound being practised, e.g. "/s/". */
+      targetPhoneme: text(16),
+      gridSize: z.number().int().min(4).max(20),
+      /** Omit for a random grid; set to reproduce a specific one. */
+      seed: z.number().int().nullish(),
+      wordCount: z.number().int().min(1).max(50),
+    })
+    .strict(),
+]);
+
+/**
+ * Incoming PATCH body. `type` is deliberately absent — changing an activity from a
+ * Wordle into a Word Search would invalidate every setting on it, so callers delete and
+ * recreate instead. The patch is merged onto the stored row and the result re-validated
+ * against `activityCreateSchema`, so an update is held to exactly the same rules as a
+ * create.
+ */
+export const activityPatchSchema = z
+  .object({
+    name: text(80),
+    difficulty: z.enum(DIFFICULTIES),
+    wordListId: z.number().int().positive(),
+    symbolDisplay: z.enum(SYMBOL_DISPLAYS),
+    showTooltips: z.boolean(),
+    theme: z.enum(THEMES),
+    maxGuesses: z.number().int().min(1).max(12),
+    wordLength: z.number().int().min(1).max(12),
+    targetPhoneme: text(16),
+    gridSize: z.number().int().min(4).max(20),
+    seed: z.number().int().nullish(),
+    wordCount: z.number().int().min(1).max(50),
+  })
+  .partial()
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, {
+    error: "Provide at least one field to update.",
+  });
+
+export const activityQuerySchema = z.object({
+  type: z.enum(ACTIVITY_TYPES).optional(),
+  difficulty: z.enum(DIFFICULTIES).optional(),
+  wordListId: z.coerce.number().int().positive().optional(),
+});
+
+export type ActivityCreateInput = z.infer<typeof activityCreateSchema>;
+export type ActivityPatchInput = z.infer<typeof activityPatchSchema>;
 
 export type PhonemeCreateInput = z.infer<typeof phonemeCreateSchema>;
 export type PhonemeUpdateInput = z.infer<typeof phonemeUpdateSchema>;

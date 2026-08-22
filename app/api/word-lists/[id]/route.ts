@@ -4,6 +4,7 @@ import {
   noContent,
   ok,
   parseJsonBody,
+  plural,
   withErrorHandling,
 } from "@/lib/http";
 import { resolveWordIds } from "@/lib/words";
@@ -93,7 +94,7 @@ export const DELETE = withErrorHandling(async (_request: Request, ctx: Context) 
 
   if (list._count.activities > 0) {
     throw ApiError.inUse(
-      `Cannot delete "${list.name}" — ${list._count.activities} activity/activities still use it.`,
+      `Cannot delete "${list.name}" — ${plural(list._count.activities, "activity", "activities")} still ${list._count.activities === 1 ? "uses" : "use"} it.`,
       { activities: list._count.activities },
     );
   }

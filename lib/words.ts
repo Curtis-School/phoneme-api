@@ -70,7 +70,7 @@ export async function resolvePhonemeIds(ipas: string[]): Promise<number[]> {
     throw new ApiError(
       400,
       "VALIDATION_ERROR",
-      `Unknown phoneme symbol(s): ${unknown.join(", ")}.`,
+      `Unknown phoneme ${unknown.length === 1 ? "symbol" : "symbols"}: ${unknown.join(", ")}.`,
       { unknownPhonemes: unknown },
     );
   }
@@ -94,7 +94,7 @@ export async function resolveWordIds(englishWords: string[]): Promise<number[]> 
     throw new ApiError(
       400,
       "VALIDATION_ERROR",
-      `Unknown word(s): ${unknown.join(", ")}. Create them first via POST /api/words.`,
+      `Unknown ${unknown.length === 1 ? "word" : "words"}: ${unknown.join(", ")}. Create ${unknown.length === 1 ? "it" : "them"} first via POST /api/words.`,
       { unknownWords: unknown },
     );
   }

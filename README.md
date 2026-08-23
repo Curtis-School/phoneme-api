@@ -9,7 +9,7 @@ owns 3000.
 ```bash
 npm install          # postinstall runs `prisma generate`
 cp .env.example .env
-npm run db:migrate   # creates prisma/dev.db
+npm run db:migrate   # creates ./dev.db
 npm run db:seed      # loads the phoneme dataset
 npm run dev          # http://localhost:3001
 ```
@@ -223,6 +223,14 @@ Validation lives in `lib/validation.ts`. IPA symbols are validated as non-empty 
 strings rather than by character count — `/eː/` and `/ɑe/` span several code points, so any
 single-character rule would reject valid data.
 
+## Docker
+
+```bash
+docker compose up --build      # http://localhost:3001/health
+docker compose down            # stop; the database volume survives
+docker compose down -v         # stop and discard the database
+```
+
 ## Structure
 
 ```
@@ -246,6 +254,8 @@ prisma/
   seed-data/          # phoneme dataset carried over from Assessment 1
 prisma.config.ts      # datasource url, migration paths, seed command
 next.config.ts        # rewrites / -> /health
+Dockerfile            # two-stage build
+docker-compose.yml    # service, port, volume
 ```
 
 ## Notes for this Next.js version

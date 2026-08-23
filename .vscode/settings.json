@@ -1,0 +1,7 @@
+{
+  // Prisma 7 keeps the datasource URL in prisma.config.ts, but the extension shells out
+  // to `prisma studio` in this directory, and that reads DATABASE_URL from .env via the
+  // config file's `import "dotenv/config"`. So .env must exist — copy it from .env.example.
+  "prisma.schemaPath": "prisma/schema.prisma",
+  "prisma.fileWatcher": true
+}

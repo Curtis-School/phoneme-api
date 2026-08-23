@@ -1,0 +1,24 @@
+# Rebuilt inside the image
+node_modules
+lib/generated
+.next
+out
+build
+
+# Local-only state — the container keeps its database on a volume
+.env
+.env.*
+!.env.example
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Not needed at build time
+.git
+.gitignore
+.claude
+*.tsbuildinfo
+npm-debug.log*
+.DS_Store
+README.md

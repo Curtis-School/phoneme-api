@@ -13,19 +13,13 @@ import {
   serializeWordListDetail,
   wordListDetailInclude,
 } from "@/lib/word-lists";
-import { idParamSchema, wordListUpdateSchema } from "@/lib/validation";
+import { readIdParam, wordListUpdateSchema } from "@/lib/validation";
 
 type Context = RouteContext<"/api/word-lists/[id]">;
 
-async function readId(ctx: Context) {
-  const { id } = await ctx.params;
-
-  return idParamSchema.parse(id);
-}
-
 /** GET /api/word-lists/:id — the list with its words in order, each with its phonemes. */
 export const GET = withErrorHandling(async (_request: Request, ctx: Context) => {
-  const id = await readId(ctx);
+  const id = await readIdParam(ctx.params);
 
   const list = await prisma.wordList.findUnique({
     where: { id },
@@ -41,7 +35,7 @@ export const GET = withErrorHandling(async (_request: Request, ctx: Context) => 
 
 /** PATCH /api/word-lists/:id */
 export const PATCH = withErrorHandling(async (request: Request, ctx: Context) => {
-  const id = await readId(ctx);
+  const id = await readIdParam(ctx.params);
   const { name, description, targetPhoneme, words } = await parseJsonBody(
     request,
     wordListUpdateSchema,
@@ -81,7 +75,7 @@ export const PATCH = withErrorHandling(async (request: Request, ctx: Context) =>
 
 /** DELETE /api/word-lists/:id */
 export const DELETE = withErrorHandling(async (_request: Request, ctx: Context) => {
-  const id = await readId(ctx);
+  const id = await readIdParam(ctx.params);
 
   const list = await prisma.wordList.findUnique({
     where: { id },

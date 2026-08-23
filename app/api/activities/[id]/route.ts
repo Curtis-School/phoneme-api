@@ -16,20 +16,14 @@ import {
 import {
   activityCreateSchema,
   activityPatchSchema,
-  idParamSchema,
+  readIdParam,
 } from "@/lib/validation";
 
 type Context = RouteContext<"/api/activities/[id]">;
 
-async function readId(ctx: Context) {
-  const { id } = await ctx.params;
-
-  return idParamSchema.parse(id);
-}
-
 /** GET /api/activities/:id */
 export const GET = withErrorHandling(async (_request: Request, ctx: Context) => {
-  const id = await readId(ctx);
+  const id = await readIdParam(ctx.params);
 
   const activity = await prisma.activity.findUnique({
     where: { id },
@@ -51,7 +45,7 @@ export const GET = withErrorHandling(async (_request: Request, ctx: Context) => 
  * cannot be edited into a state that is missing `maxGuesses`, for instance.
  */
 export const PATCH = withErrorHandling(async (request: Request, ctx: Context) => {
-  const id = await readId(ctx);
+  const id = await readIdParam(ctx.params);
   const patch = await parseJsonBody(request, activityPatchSchema);
 
   const existing = await prisma.activity.findUnique({
@@ -76,9 +70,9 @@ export const PATCH = withErrorHandling(async (request: Request, ctx: Context) =>
   return ok(serializeActivity(activity));
 });
 
-/** DELETE /api/activities/:id — the export history recorded against it cascades away. */
+/** DELETE /api/activities/:id — the word list it points at is left untouched. */
 export const DELETE = withErrorHandling(async (_request: Request, ctx: Context) => {
-  const id = await readId(ctx);
+  const id = await readIdParam(ctx.params);
 
   const activity = await prisma.activity.findUnique({
     where: { id },

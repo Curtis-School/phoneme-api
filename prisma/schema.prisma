@@ -132,23 +132,8 @@ model Activity {
 
   wordList      WordList         @relation(fields: [wordListId], references: [id], onDelete: Restrict)
   targetPhoneme Phoneme?         @relation("ActivityTargetPhoneme", fields: [targetPhonemeId], references: [id], onDelete: SetNull)
-  exports       ActivityExport[]
 
   @@unique([name, type])
   @@index([wordListId])
   @@index([targetPhonemeId])
-}
-
-/// Audit record of a downloadable HTML activity that was generated.
-model ActivityExport {
-  id          Int      @id @default(autoincrement())
-  activityId  Int
-  filename    String
-  /// Seed actually used, so a previously generated file can be reproduced exactly.
-  seed        Int?
-  generatedAt DateTime @default(now())
-
-  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
-
-  @@index([activityId])
 }

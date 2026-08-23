@@ -15,10 +15,20 @@ const text = (max = 200) =>
     .min(1, "must not be empty")
     .max(max, `must be ${max} characters or fewer`);
 
-export const idParamSchema = z.coerce
+const idParamSchema = z.coerce
   .number({ error: "id must be a number" })
   .int("id must be a whole number")
   .positive("id must be positive");
+
+/**
+ * Reads and validates the `:id` segment of a dynamic route.
+ *
+ * Next 16 delivers route params as a Promise, and every `[id]` handler needs the same
+ * three lines, so they live here rather than being repeated per route file.
+ */
+export async function readIdParam(params: Promise<{ id: string }>) {
+  return idParamSchema.parse((await params).id);
+}
 
 export const phonemeCreateSchema = z.object({
   ipa: text(16),
@@ -76,9 +86,6 @@ export const wordsQuerySchema = z.object({
     .optional(),
 });
 
-export type WordCreateInput = z.infer<typeof wordCreateSchema>;
-export type WordUpdateInput = z.infer<typeof wordUpdateSchema>;
-
 /**
  * Ordered membership for a word list, given as English spellings.
  *
@@ -119,9 +126,6 @@ export const wordListQuerySchema = z.object({
   /** Filter to lists built around this IPA symbol. */
   phoneme: z.string().trim().min(1).max(16).optional(),
 });
-
-export type WordListCreateInput = z.infer<typeof wordListCreateSchema>;
-export type WordListUpdateInput = z.infer<typeof wordListUpdateSchema>;
 
 /**
  * Activity settings, discriminated on `type`.
@@ -202,7 +206,11 @@ export const activityQuerySchema = z.object({
 });
 
 export type ActivityCreateInput = z.infer<typeof activityCreateSchema>;
-export type ActivityPatchInput = z.infer<typeof activityPatchSchema>;
 
-export type PhonemeCreateInput = z.infer<typeof phonemeCreateSchema>;
-export type PhonemeUpdateInput = z.infer<typeof phonemeUpdateSchema>;
+export const generateQuerySchema = z.object({
+  /** Pin a specific Wordle target instead of drawing one at random. */
+  wordId: z.coerce.number().int().positive().optional(),
+  /** Override the activity's stored Word Search seed for this request. */
+  seed: z.coerce.number().int().optional(),
+});
+

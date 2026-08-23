@@ -13,6 +13,7 @@ import "dotenv/config";
 import { readFileSync } from "node:fs";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "../lib/generated/prisma/client";
+import { DIFFICULTIES, type Difficulty } from "../lib/constants";
 
 type SourcePhoneme = {
   ipa: string;
@@ -39,9 +40,6 @@ type Dataset = {
   wordleConfigs: SourceWordleConfig[];
   wordSearchConfigs: SourceWordSearchConfig[];
 };
-
-const DIFFICULTIES = ["easy", "medium", "hard"] as const;
-type Difficulty = (typeof DIFFICULTIES)[number];
 
 /** Word Search word counts per difficulty, capped at the phoneme's available pool. */
 const WORD_SEARCH_COUNTS: Record<Difficulty, number> = {

@@ -7,19 +7,13 @@ import {
   withErrorHandling,
 } from "@/lib/http";
 import { resolvePhonemeIds, serializeWord, wordInclude } from "@/lib/words";
-import { idParamSchema, wordUpdateSchema } from "@/lib/validation";
+import { readIdParam, wordUpdateSchema } from "@/lib/validation";
 
 type Context = RouteContext<"/api/words/[id]">;
 
-async function readId(ctx: Context) {
-  const { id } = await ctx.params;
-
-  return idParamSchema.parse(id);
-}
-
 /** GET /api/words/:id */
 export const GET = withErrorHandling(async (_request: Request, ctx: Context) => {
-  const id = await readId(ctx);
+  const id = await readIdParam(ctx.params);
 
   const word = await prisma.word.findUnique({ where: { id }, include: wordInclude });
 
@@ -32,7 +26,7 @@ export const GET = withErrorHandling(async (_request: Request, ctx: Context) => 
 
 /** PATCH /api/words/:id */
 export const PATCH = withErrorHandling(async (request: Request, ctx: Context) => {
-  const id = await readId(ctx);
+  const id = await readIdParam(ctx.params);
   const { english, hint, phonemes } = await parseJsonBody(request, wordUpdateSchema);
 
   const existing = await prisma.word.findUnique({ where: { id }, select: { id: true } });
@@ -74,7 +68,7 @@ export const PATCH = withErrorHandling(async (request: Request, ctx: Context) =>
  * affected, since they reference lists rather than individual words.
  */
 export const DELETE = withErrorHandling(async (_request: Request, ctx: Context) => {
-  const id = await readId(ctx);
+  const id = await readIdParam(ctx.params);
 
   const word = await prisma.word.findUnique({ where: { id }, select: { id: true } });
 

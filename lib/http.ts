@@ -11,13 +11,14 @@ import { Prisma } from "@/lib/generated/prisma/client";
  * so the frontend can branch on `code` rather than parsing prose.
  */
 
-export type ErrorCode =
+type ErrorCode =
   | "VALIDATION_ERROR"
   | "INVALID_JSON"
   | "NOT_FOUND"
   | "CONFLICT"
   | "INVALID_REFERENCE"
   | "IN_USE"
+  | "UNSATISFIABLE"
   | "INTERNAL_ERROR";
 
 export function ok(data: unknown, status = 200) {
@@ -63,10 +64,6 @@ export class ApiError extends Error {
     return new ApiError(404, "NOT_FOUND", `${what} was not found.`);
   }
 
-  static conflict(message: string, details?: unknown) {
-    return new ApiError(409, "CONFLICT", message, details);
-  }
-
   static inUse(message: string, details?: unknown) {
     return new ApiError(409, "IN_USE", message, details);
   }
@@ -100,7 +97,7 @@ export async function parseJsonBody<T extends z.ZodType>(
 }
 
 /** Flattens Zod issues into a compact, client-friendly list. */
-export function formatIssues(error: z.ZodError) {
+function formatIssues(error: z.ZodError) {
   return error.issues.map((issue) => ({
     field: issue.path.length > 0 ? issue.path.join(".") : "(root)",
     code: issue.code,

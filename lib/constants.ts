@@ -8,13 +8,10 @@
  */
 
 export const ACTIVITY_TYPES = ["wordle", "word_search"] as const;
-export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 
 export const DIFFICULTIES = ["easy", "medium", "hard"] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 
 export const SYMBOL_DISPLAYS = ["ipa", "english"] as const;
-export type SymbolDisplay = (typeof SYMBOL_DISPLAYS)[number];
 
 export const THEMES = ["light", "dark"] as const;
-export type Theme = (typeof THEMES)[number];

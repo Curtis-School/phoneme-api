@@ -7,19 +7,13 @@ import {
   plural,
   withErrorHandling,
 } from "@/lib/http";
-import { idParamSchema, phonemeUpdateSchema } from "@/lib/validation";
+import { readIdParam, phonemeUpdateSchema } from "@/lib/validation";
 
 type Context = RouteContext<"/api/phonemes/[id]">;
 
-async function readId(ctx: Context) {
-  const { id } = await ctx.params;
-
-  return idParamSchema.parse(id);
-}
-
 /** GET /api/phonemes/:id — one phoneme, with a count of the words that use it. */
 export const GET = withErrorHandling(async (_request: Request, ctx: Context) => {
-  const id = await readId(ctx);
+  const id = await readIdParam(ctx.params);
 
   const phoneme = await prisma.phoneme.findUnique({
     where: { id },
@@ -35,7 +29,7 @@ export const GET = withErrorHandling(async (_request: Request, ctx: Context) => 
 
 /** PATCH /api/phonemes/:id — partial update. */
 export const PATCH = withErrorHandling(async (request: Request, ctx: Context) => {
-  const id = await readId(ctx);
+  const id = await readIdParam(ctx.params);
   const data = await parseJsonBody(request, phonemeUpdateSchema);
 
   // A missing row raises P2025 and a duplicate `ipa` raises P2002; both are mapped
@@ -53,7 +47,7 @@ export const PATCH = withErrorHandling(async (request: Request, ctx: Context) =>
  * first lets us say exactly how many words are in the way.
  */
 export const DELETE = withErrorHandling(async (_request: Request, ctx: Context) => {
-  const id = await readId(ctx);
+  const id = await readIdParam(ctx.params);
 
   const phoneme = await prisma.phoneme.findUnique({
     where: { id },

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { created, ok, parseJsonBody, withErrorHandling } from "@/lib/http";
-import { phonemeCreateSchema, phonemeListQuerySchema } from "@/lib/validation";
+import { ok, withErrorHandling } from "@/lib/http";
+import { phonemeListQuerySchema } from "@/lib/validation";
 
 /** GET /api/phonemes — the full inventory, optionally filtered by `?search=`. */
 export const GET = withErrorHandling(async (request: Request) => {
@@ -24,14 +24,4 @@ export const GET = withErrorHandling(async (request: Request) => {
   });
 
   return ok(phonemes);
-});
-
-/** POST /api/phonemes — add a phoneme to the inventory. */
-export const POST = withErrorHandling(async (request: Request) => {
-  const data = await parseJsonBody(request, phonemeCreateSchema);
-
-  // A duplicate `ipa` raises P2002, which withErrorHandling turns into a 409.
-  const phoneme = await prisma.phoneme.create({ data });
-
-  return created(phoneme);
 });

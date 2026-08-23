@@ -86,48 +86,7 @@ export function serializeActivity(activity: ActivityRow) {
   };
 }
 
-/** Turns a stored row back into the shape `activityCreateSchema` accepts. */
-export function toCreateInput(activity: ActivityRow): Record<string, unknown> {
-  const base = {
-    type: activity.type,
-    name: activity.name,
-    difficulty: activity.difficulty,
-    wordListId: activity.wordListId,
-    symbolDisplay: activity.symbolDisplay,
-    showTooltips: activity.showTooltips,
-    theme: activity.theme,
-  };
-
-  if (activity.type === "wordle") {
-    return {
-      ...base,
-      maxGuesses: activity.maxGuesses,
-      wordLength: activity.wordLength,
-      wordId: activity.wordId,
-    };
-  }
-
-  return {
-    ...base,
-    targetPhoneme: activity.targetPhoneme?.ipa,
-    gridSize: activity.gridSize,
-    seed: activity.seed,
-    wordCount: activity.wordCount,
-  };
-}
-
-/**
- * Checks the configuration against the word list it points at.
- *
- * This is a fail-fast courtesy, not a guarantee: a list can be edited after the activity
- * is saved, so the generate endpoint must still cope with a list that no longer supports
- * its activity. Catching it here means the teacher hears about it while they are still
- * looking at the form.
- */
-export async function assertActivityIsSatisfiable(
-  input: ActivityCreateInput,
-  excludeId?: number,
-) {
+export async function assertActivityIsSatisfiable(input: ActivityCreateInput) {
   const wordList = await prisma.wordList.findUnique({
     where: { id: input.wordListId },
     select: { id: true, name: true, _count: { select: { items: true } } },
@@ -142,7 +101,6 @@ export async function assertActivityIsSatisfiable(
   }
 
   if (input.type === "wordle") {
-    // A Wordle picks a word of exactly `wordLength` phonemes, so the list has to hold one.
     const eligible = await prisma.word.count({
       where: {
         listItems: { some: { wordListId: wordList.id } },
@@ -185,13 +143,10 @@ export async function assertActivityIsSatisfiable(
       }
     }
 
-    // Wordle has so little to configure that two activities differing only in name are
-    // the same activity to a teacher — so this catches an accidental re-save rather than
-    // silently duplicating it. Theme is included in the comparison rather than ignored:
-    // the same word in a different theme is a deliberate, distinct variant, not a dupe.
+    //Theme is included in the comparison rather than ignored:
+    // the same word in a different theme is a deliberate
     const duplicate = await prisma.activity.findFirst({
       where: {
-        id: excludeId ? { not: excludeId } : undefined,
         type: "wordle",
         wordListId: wordList.id,
         difficulty: input.difficulty,
@@ -243,7 +198,6 @@ export async function toActivityData(input: ActivityCreateInput) {
       maxGuesses: input.maxGuesses,
       wordLength: input.wordLength,
       wordId: input.wordId ?? null,
-      // Cleared so a row never carries settings from the other activity type.
       targetPhonemeId: null,
       gridSize: null,
       seed: null,

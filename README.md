@@ -67,10 +67,6 @@ on the natural keys `ipa`, `english` and `name`, and rebuilds ordered child rows
 | Method | Path | Description |
 | ------ | ---- | ----------- |
 | `GET` | `/api/phonemes` | Full inventory. `?search=` matches ipa, label, english or example. |
-| `POST` | `/api/phonemes` | Add a phoneme. `201`. |
-| `GET` | `/api/phonemes/:id` | One phoneme, with a count of the words using it. |
-| `PATCH` | `/api/phonemes/:id` | Partial update; at least one field required. |
-| `DELETE` | `/api/phonemes/:id` | `204`, or `409` while any word still uses it. |
 
 ### Words
 
@@ -78,8 +74,6 @@ on the natural keys `ipa`, `english` and `name`, and rebuilds ordered child rows
 | ------ | ---- | ----------- |
 | `GET` | `/api/words` | Words with their ordered phonemes. `?search=` `?phoneme=/s/` `?length=3` combine. |
 | `POST` | `/api/words` | Create a word from IPA symbols. `201`. |
-| `GET` | `/api/words/:id` | One word. |
-| `PATCH` | `/api/words/:id` | Update `english` and/or replace the phoneme sequence. |
 | `DELETE` | `/api/words/:id` | `204`. Phoneme links and list memberships cascade away. |
 
 ```jsonc
@@ -91,11 +85,8 @@ on the natural keys `ipa`, `english` and `name`, and rebuilds ordered child rows
   "phonemes": [{ "id": 12, "ipa": "/θ/", "label": "TH", "example": "as in thin", "english": "th" }] }
 ```
 
-- An unknown symbol rejects the whole request with `400`, naming every offending symbol at
-  once rather than failing on the first.
-- `phonemes` in a `PATCH` replaces the entire sequence. Positions are contiguous and unique
-  per word, so rows are deleted and rewritten in one transaction; a failure part-way (a
-  duplicate `english`, say) rolls the sequence back untouched.
+- An unknown symbol rejects the whole request with `400`, naming every offending symbol at once rather than failing on the first.
+- Words are immutable once created — spelling and phoneme sequence are fixed, so there is no update endpoint. Delete and re-create instead.
 
 ### Word lists
 
@@ -123,8 +114,6 @@ A saved Wordle or Word Search configuration. Many may point at the same word lis
 | ------ | ---- | ----------- |
 | `GET` | `/api/activities` | Saved configurations. `?type=` `?difficulty=` `?wordListId=`. |
 | `POST` | `/api/activities` | Save a new configuration. `201`. |
-| `GET` | `/api/activities/:id` | One activity. |
-| `PATCH` | `/api/activities/:id` | Partial update, re-validated as a whole. |
 | `DELETE` | `/api/activities/:id` | `204`. The word list it points at is untouched. |
 
 The body is discriminated on `type`, because the two activities need different settings.
@@ -141,9 +130,7 @@ Both accept optional `symbolDisplay` (`ipa` | `english`), `showTooltips` and `th
 - Both variants are `.strict()`: `gridSize` on a Wordle is a `400`, not a dropped field.
 - Responses carry only the settings that apply to that type. One row holds the columns for
   both, but a Wordle response omits `gridSize` rather than returning a meaningless `null`.
-- `type` is not patchable — delete and recreate instead. A `PATCH` is merged onto the
-  stored row and re-validated against the create schema, so updates face the same rules as
-  creates.
+- Activities are immutable once saved — delete and recreate to change one.
 - The configuration is checked against its word list on write: a Wordle whose list holds no
   word of the required length, or a Word Search asking for more words than the list
   contains, is rejected with an explanatory `400`.

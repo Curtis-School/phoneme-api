@@ -59,7 +59,7 @@ export const PATCH = withErrorHandling(async (request: Request, ctx: Context) =>
 
   const merged = activityCreateSchema.parse({ ...toCreateInput(existing), ...patch });
 
-  await assertActivityIsSatisfiable(merged);
+  await assertActivityIsSatisfiable(merged, id);
 
   const activity = await prisma.activity.update({
     where: { id },

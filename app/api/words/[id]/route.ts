@@ -27,7 +27,7 @@ export const GET = withErrorHandling(async (_request: Request, ctx: Context) => 
 /** PATCH /api/words/:id */
 export const PATCH = withErrorHandling(async (request: Request, ctx: Context) => {
   const id = await readIdParam(ctx.params);
-  const { english, hint, phonemes } = await parseJsonBody(request, wordUpdateSchema);
+  const { english, phonemes } = await parseJsonBody(request, wordUpdateSchema);
 
   const existing = await prisma.word.findUnique({ where: { id }, select: { id: true } });
 
@@ -51,7 +51,6 @@ export const PATCH = withErrorHandling(async (request: Request, ctx: Context) =>
       where: { id },
       data: {
         ...(english === undefined ? {} : { english }),
-        ...(hint === undefined ? {} : { hint: hint ?? null }),
       },
       include: wordInclude,
     });

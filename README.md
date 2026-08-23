@@ -31,7 +31,7 @@ as `/θ/` and `/eː/` span more than one code point and must not be split by str
 | Model | Purpose |
 | --- | --- |
 | `Phoneme` | One speech sound — IPA symbol, display label, hover hint, English grapheme. |
-| `Word` | An English word, optionally with a teacher-authored hint. |
+| `Word` | An English word and its ordered phoneme sequence. |
 | `WordPhoneme` | Ordered join placing phonemes in sequence within a word (`position`). |
 | `WordList` | A named collection of words, optionally focused on one target phoneme. |
 | `WordListItem` | Membership of a word in a list, with the teacher's ordering. |
@@ -79,15 +79,15 @@ on the natural keys `ipa`, `english` and `name`, and rebuilds ordered child rows
 | `GET` | `/api/words` | Words with their ordered phonemes. `?search=` `?phoneme=/s/` `?length=3` combine. |
 | `POST` | `/api/words` | Create a word from IPA symbols. `201`. |
 | `GET` | `/api/words/:id` | One word. |
-| `PATCH` | `/api/words/:id` | Update `english`, `hint`, and/or replace the phoneme sequence. |
+| `PATCH` | `/api/words/:id` | Update `english` and/or replace the phoneme sequence. |
 | `DELETE` | `/api/words/:id` | `204`. Phoneme links and list memberships cascade away. |
 
 ```jsonc
 // POST /api/words — phonemes in and out are IPA symbols, never ids
-{ "english": "thumb", "hint": "on your hand", "phonemes": ["/θ/", "/ɐ/", "/m/"] }
+{ "english": "thumb", "phonemes": ["/θ/", "/ɐ/", "/m/"] }
 
 // response — the join table is flattened away
-{ "id": 106, "english": "thumb", "hint": "on your hand",
+{ "id": 106, "english": "thumb",
   "phonemes": [{ "id": 12, "ipa": "/θ/", "label": "TH", "example": "as in thin", "english": "th" }] }
 ```
 

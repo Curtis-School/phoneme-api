@@ -38,13 +38,12 @@ model Phoneme {
 model Word {
   id        Int      @id @default(autoincrement())
   english   String   @unique
-  /// Optional teacher-authored clue shown alongside the word.
-  hint      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   phonemes  WordPhoneme[]
   listItems WordListItem[]
+  pinnedActivities Activity[] @relation("ActivityPinnedWord")
 }
 
 /// Ordered phoneme sequence for a word: thin = /θ/ /ɪ/ /n/.
@@ -112,6 +111,10 @@ model Activity {
   maxGuesses Int?
   /// Phoneme count of the target word; picks which words in the list are eligible.
   wordLength Int?
+  /// Pins a specific target word so the same puzzle regenerates every time. Advisory —
+  /// if the word list changes and it's no longer eligible, generate falls back to a
+  /// random word rather than failing, the same way an unset seed does for Word Search.
+  wordId     Int?
 
   // --- Word Search settings ---
   targetPhonemeId Int?
@@ -132,8 +135,9 @@ model Activity {
 
   wordList      WordList         @relation(fields: [wordListId], references: [id], onDelete: Restrict)
   targetPhoneme Phoneme?         @relation("ActivityTargetPhoneme", fields: [targetPhonemeId], references: [id], onDelete: SetNull)
+  word          Word?            @relation("ActivityPinnedWord", fields: [wordId], references: [id], onDelete: SetNull)
 
-  @@unique([name, type])
   @@index([wordListId])
   @@index([targetPhonemeId])
+  @@index([wordId])
 }

@@ -2,17 +2,11 @@ import { ApiError, plural } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 
 /**
- * Resolves a saved activity into the exact config shape the frontend already consumes.
- *
- * `WordleConfig`, `WordSearchConfig` and `Phoneme` are defined in the frontend's
- * `lib/types.ts`; the objects built here are deliberately identical to them so the
- * existing builder components and HTML exporters need no changes. In particular a
- * `Phoneme` is exactly four fields — database ids and timestamps are projected away
- * rather than leaked into the activity payload.
+ * Resolves a saved activity into the exact config shape the frontend already consumes. 
  */
 
 /** The frontend's `Phoneme`: no id, no timestamps. */
-type PhonemeDto = {
+export type PhonemeDto = {
   ipa: string;
   label: string;
   example: string;
@@ -21,7 +15,7 @@ type PhonemeDto = {
 
 type PhonemeRow = PhonemeDto & { id: number };
 
-function toPhonemeDto({ ipa, label, example, english }: PhonemeRow): PhonemeDto {
+export function toPhonemeDto({ ipa, label, example, english }: PhonemeRow): PhonemeDto {
   return { ipa, label, example, english };
 }
 
@@ -96,11 +90,14 @@ function phonemesOf(word: LoadedWord): PhonemeDto[] {
 /**
  * Builds a `WordleConfig`.
  *
- * `wordId` pins a specific target so a demo or a regenerated export can be repeated;
- * without it a word of the right length is chosen at random, which is what lets one saved
- * activity produce a different puzzle each time rather than a single fixed example.
+ * `wordIdOverride` pins a specific target for this one call. Failing that, the
+ * activity's own stored `wordId` is used — the same "saved pin" pattern as Word
+ * Search's `seed`. An explicit override is a deliberate ask and fails loudly if it
+ * doesn't fit; the stored pin is advisory, so if the word list has changed since it was
+ * saved and the pin no longer fits, generation falls back to a random word rather than
+ * failing the whole activity.
  */
-export function buildWordleConfig(activity: LoadedActivity, wordId: number | undefined) {
+export function buildWordleConfig(activity: LoadedActivity, wordIdOverride: number | undefined) {
   const { maxGuesses, wordLength } = activity;
 
   if (maxGuesses === null || wordLength === null) {
@@ -125,23 +122,25 @@ export function buildWordleConfig(activity: LoadedActivity, wordId: number | und
 
   let target = eligible[Math.floor(Math.random() * eligible.length)];
 
-  if (wordId !== undefined) {
-    const pinned = eligible.find((word) => word.id === wordId);
+  if (wordIdOverride !== undefined) {
+    const pinned = eligible.find((word) => word.id === wordIdOverride);
 
     if (!pinned) {
-      const inList = words.some((word) => word.id === wordId);
+      const inList = words.some((word) => word.id === wordIdOverride);
 
       throw new ApiError(
         400,
         "VALIDATION_ERROR",
         inList
-          ? `Word ${wordId} is in the list but does not have ${plural(wordLength, "phoneme")}.`
-          : `Word ${wordId} is not in "${activity.wordList.name}".`,
-        { wordId },
+          ? `Word ${wordIdOverride} is in the list but does not have ${plural(wordLength, "phoneme")}.`
+          : `Word ${wordIdOverride} is not in "${activity.wordList.name}".`,
+        { wordId: wordIdOverride },
       );
     }
 
     target = pinned;
+  } else if (activity.wordId !== null) {
+    target = eligible.find((word) => word.id === activity.wordId) ?? target;
   }
 
   return {

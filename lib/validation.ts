@@ -50,7 +50,6 @@ export const phonemeListQuerySchema = z.object({
 
 export const wordCreateSchema = z.object({
   english: text(60),
-  hint: text(200).nullish(),
   phonemes: z
     .array(text(16))
     .min(1, "must contain at least one phoneme")
@@ -62,7 +61,6 @@ export const wordCreateSchema = z.object({
 export const wordUpdateSchema = z
   .object({
     english: text(60),
-    hint: text(200).nullish(),
     phonemes: z
       .array(text(16))
       .min(1, "must contain at least one phoneme")
@@ -155,6 +153,8 @@ export const activityCreateSchema = z.discriminatedUnion("type", [
       maxGuesses: z.number().int().min(1).max(12),
       /** Phoneme count of the target word; decides which words in the list are eligible. */
       wordLength: z.number().int().min(1).max(12),
+      /** Pins a specific target word instead of leaving it to be drawn at random. */
+      wordId: z.number().int().positive().nullish(),
     })
     .strict(),
   z
@@ -188,6 +188,7 @@ export const activityPatchSchema = z
     theme: z.enum(THEMES),
     maxGuesses: z.number().int().min(1).max(12),
     wordLength: z.number().int().min(1).max(12),
+    wordId: z.number().int().positive().nullish(),
     targetPhoneme: text(16),
     gridSize: z.number().int().min(4).max(20),
     seed: z.number().int().nullish(),

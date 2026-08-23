@@ -202,23 +202,62 @@ async function main() {
   }
 
   // --- Starter activities: Wordle -----------------------------------------------
+  // Each difficulty gets two kinds of activity
   for (const difficulty of DIFFICULTIES) {
     const configs = dataset.wordleConfigs.filter((c) => c.difficulty === difficulty);
     const wordListId = listIdByDifficulty.get(difficulty)!;
-    const name = `${difficulty} Wordle`;
+    const wordLength = configs[0].word.length;
+    const maxGuesses = configs[0].maxGuesses;
 
-    const settings = {
+    const tierData = {
+      name: `${difficulty} Wordle`,
+      type: "wordle",
       difficulty,
       wordListId,
-      maxGuesses: configs[0].maxGuesses,
-      wordLength: configs[0].word.length,
+      maxGuesses,
+      wordLength,
+      wordId: null,
     };
 
-    await prisma.activity.upsert({
-      where: { name_type: { name, type: "wordle" } },
-      create: { name, type: "wordle", ...settings },
-      update: settings,
+    const existingTier = await prisma.activity.findFirst({
+      where: { type: "wordle", difficulty, wordId: null },
+      select: { id: true },
     });
+
+    if (existingTier) {
+      await prisma.activity.update({ where: { id: existingTier.id }, data: tierData });
+    } else {
+      await prisma.activity.create({ data: tierData });
+    }
+
+    for (const config of configs.slice(0, 2)) {
+      const wordId = wordIdByEnglish.get(config.englishWord);
+
+      if (wordId === undefined) {
+        throw new Error(`Wordle seed references unknown word "${config.englishWord}".`);
+      }
+
+      const data = {
+        name: config.englishWord,
+        type: "wordle",
+        difficulty,
+        wordListId,
+        maxGuesses: config.maxGuesses,
+        wordLength: config.word.length,
+        wordId,
+      };
+
+      const existing = await prisma.activity.findFirst({
+        where: { type: "wordle", wordId },
+        select: { id: true },
+      });
+
+      if (existing) {
+        await prisma.activity.update({ where: { id: existing.id }, data });
+      } else {
+        await prisma.activity.create({ data });
+      }
+    }
   }
 
   // --- Starter activities: Word Search ------------------------------------------
@@ -238,9 +277,10 @@ async function main() {
     if (!config) continue;
 
     const wordListId = listIdByPhonemeIpa.get(config.phoneme.ipa)!;
-    const name = `${difficulty} ${config.phoneme.ipa} Word Search`;
 
-    const settings = {
+    const data = {
+      name: `${difficulty} ${config.phoneme.ipa} Word Search`,
+      type: "word_search",
       difficulty,
       wordListId,
       targetPhonemeId: phonemeIdByIpa.get(config.phoneme.ipa) ?? null,
@@ -249,11 +289,17 @@ async function main() {
       wordCount: Math.min(WORD_SEARCH_COUNTS[difficulty], config.words.length),
     };
 
-    await prisma.activity.upsert({
-      where: { name_type: { name, type: "word_search" } },
-      create: { name, type: "word_search", ...settings },
-      update: settings,
+    // One activity per difficulty by construction, so difficulty is the natural key.
+    const existing = await prisma.activity.findFirst({
+      where: { type: "word_search", difficulty },
+      select: { id: true },
     });
+
+    if (existing) {
+      await prisma.activity.update({ where: { id: existing.id }, data });
+    } else {
+      await prisma.activity.create({ data });
+    }
   }
 
   const [phonemes, words, wordPhonemes, wordLists, wordListItems, activities] =

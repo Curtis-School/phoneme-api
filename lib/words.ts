@@ -20,7 +20,6 @@ export const wordInclude = {
 type WordWithPhonemes = {
   id: number;
   english: string;
-  hint: string | null;
   createdAt: Date;
   updatedAt: Date;
   phonemes: {
@@ -43,7 +42,6 @@ export function serializeWord(word: WordWithPhonemes) {
   return {
     id: word.id,
     english: word.english,
-    hint: word.hint,
     phonemes: word.phonemes.map((link) => link.phoneme),
     createdAt: word.createdAt,
     updatedAt: word.updatedAt,

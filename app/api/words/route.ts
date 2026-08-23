@@ -54,13 +54,12 @@ export const GET = withErrorHandling(async (request: Request) => {
  * deal in database ids. Unknown symbols abort the whole request.
  */
 export const POST = withErrorHandling(async (request: Request) => {
-  const { english, hint, phonemes } = await parseJsonBody(request, wordCreateSchema);
+  const { english, phonemes } = await parseJsonBody(request, wordCreateSchema);
   const phonemeIds = await resolvePhonemeIds(phonemes);
 
   const word = await prisma.word.create({
     data: {
       english,
-      hint: hint ?? null,
       phonemes: {
         create: phonemeIds.map((phonemeId, position) => ({ phonemeId, position })),
       },

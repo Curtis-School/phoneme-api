@@ -1,6 +1,7 @@
 import { ApiError, plural } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { resolveTargetPhonemeId } from "@/lib/word-lists";
+import { toPhonemeDto, type PhonemeDto } from "@/lib/generate";
 import type { ActivityCreateInput } from "@/lib/validation";
 
 /**
@@ -10,6 +11,9 @@ import type { ActivityCreateInput } from "@/lib/validation";
 export const activityInclude = {
   targetPhoneme: true,
   wordList: { select: { id: true, name: true, _count: { select: { items: true } } } },
+  word: {
+    include: { phonemes: { orderBy: { position: "asc" }, include: { phoneme: true } } },
+  },
 } as const;
 
 type ActivityRow = {
@@ -20,6 +24,7 @@ type ActivityRow = {
   wordListId: number;
   maxGuesses: number | null;
   wordLength: number | null;
+  wordId: number | null;
   gridSize: number | null;
   seed: number | null;
   wordCount: number | null;
@@ -30,6 +35,7 @@ type ActivityRow = {
   updatedAt: Date;
   targetPhoneme: { ipa: string; label: string; example: string; english: string } | null;
   wordList: { id: number; name: string; _count: { items: number } };
+  word: { english: string; phonemes: { phoneme: PhonemeDto & { id: number } }[] } | null;
 };
 
 /**
@@ -62,6 +68,12 @@ export function serializeActivity(activity: ActivityRow) {
       ...base,
       maxGuesses: activity.maxGuesses,
       wordLength: activity.wordLength,
+      word: activity.word
+        ? {
+            english: activity.word.english,
+            phonemes: activity.word.phonemes.map((link) => toPhonemeDto(link.phoneme)),
+          }
+        : null,
     };
   }
 
@@ -74,39 +86,6 @@ export function serializeActivity(activity: ActivityRow) {
   };
 }
 
-/** Turns a stored row back into the shape `activityCreateSchema` accepts. */
-export function toCreateInput(activity: ActivityRow): Record<string, unknown> {
-  const base = {
-    type: activity.type,
-    name: activity.name,
-    difficulty: activity.difficulty,
-    wordListId: activity.wordListId,
-    symbolDisplay: activity.symbolDisplay,
-    showTooltips: activity.showTooltips,
-    theme: activity.theme,
-  };
-
-  if (activity.type === "wordle") {
-    return { ...base, maxGuesses: activity.maxGuesses, wordLength: activity.wordLength };
-  }
-
-  return {
-    ...base,
-    targetPhoneme: activity.targetPhoneme?.ipa,
-    gridSize: activity.gridSize,
-    seed: activity.seed,
-    wordCount: activity.wordCount,
-  };
-}
-
-/**
- * Checks the configuration against the word list it points at.
- *
- * This is a fail-fast courtesy, not a guarantee: a list can be edited after the activity
- * is saved, so the generate endpoint must still cope with a list that no longer supports
- * its activity. Catching it here means the teacher hears about it while they are still
- * looking at the form.
- */
 export async function assertActivityIsSatisfiable(input: ActivityCreateInput) {
   const wordList = await prisma.wordList.findUnique({
     where: { id: input.wordListId },
@@ -122,7 +101,6 @@ export async function assertActivityIsSatisfiable(input: ActivityCreateInput) {
   }
 
   if (input.type === "wordle") {
-    // A Wordle picks a word of exactly `wordLength` phonemes, so the list has to hold one.
     const eligible = await prisma.word.count({
       where: {
         listItems: { some: { wordListId: wordList.id } },
@@ -139,6 +117,53 @@ export async function assertActivityIsSatisfiable(input: ActivityCreateInput) {
         "VALIDATION_ERROR",
         `"${wordList.name}" contains no word with ${plural(input.wordLength, "phoneme")}, so this Wordle could never be generated.`,
         { wordListId: wordList.id, wordLength: input.wordLength },
+      );
+    }
+
+    if (input.wordId != null) {
+      const pinned = await prisma.word.findFirst({
+        where: {
+          id: input.wordId,
+          listItems: { some: { wordListId: wordList.id } },
+          AND: [
+            { phonemes: { some: { position: input.wordLength - 1 } } },
+            { phonemes: { none: { position: input.wordLength } } },
+          ],
+        },
+        select: { id: true },
+      });
+
+      if (!pinned) {
+        throw new ApiError(
+          400,
+          "INVALID_REFERENCE",
+          `Word ${input.wordId} is not in "${wordList.name}" with ${plural(input.wordLength, "phoneme")}.`,
+          { wordListId: wordList.id, wordId: input.wordId },
+        );
+      }
+    }
+
+    //Theme is included in the comparison rather than ignored:
+    // the same word in a different theme is a deliberate
+    const duplicate = await prisma.activity.findFirst({
+      where: {
+        type: "wordle",
+        wordListId: wordList.id,
+        difficulty: input.difficulty,
+        wordId: input.wordId ?? null,
+        symbolDisplay: input.symbolDisplay ?? "ipa",
+        showTooltips: input.showTooltips ?? true,
+        theme: input.theme ?? "light",
+      },
+      select: { id: true, name: true },
+    });
+
+    if (duplicate) {
+      throw new ApiError(
+        409,
+        "CONFLICT",
+        `This exact Wordle configuration is already saved as "${duplicate.name}".`,
+        { activityId: duplicate.id },
       );
     }
 
@@ -172,7 +197,7 @@ export async function toActivityData(input: ActivityCreateInput) {
       ...shared,
       maxGuesses: input.maxGuesses,
       wordLength: input.wordLength,
-      // Cleared so a row never carries settings from the other activity type.
+      wordId: input.wordId ?? null,
       targetPhonemeId: null,
       gridSize: null,
       seed: null,
@@ -184,6 +209,7 @@ export async function toActivityData(input: ActivityCreateInput) {
     ...shared,
     maxGuesses: null,
     wordLength: null,
+    wordId: null,
     targetPhonemeId: await resolveTargetPhonemeId(input.targetPhoneme),
     gridSize: input.gridSize,
     seed: input.seed ?? null,

@@ -1,0 +1,19 @@
+services:
+  phoneme-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: phoneme-api
+    ports:
+      - "3001:3001" # frontend keeps 3000
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/data/phoneme.db
+    volumes:
+      # Keeps the SQLite file out of the container's writable layer, so saved word
+      # lists survive the container being replaced.
+      - phoneme-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  phoneme-data:

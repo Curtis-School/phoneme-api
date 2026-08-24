@@ -51,6 +51,9 @@ const WORD_SEARCH_COUNTS: Record<Difficulty, number> = {
 /** Matches the frontend's current `initialSeed`, so seeded grids look familiar. */
 const DEFAULT_SEED = 42;
 
+/** Fixed grid: the frontend builds every Word Search at this size. */
+const WORD_SEARCH_SIZE = 8;
+
 function loadDataset(): Dataset {
   const path = new URL("./seed-data/phoneme-word-list.json", import.meta.url);
   return JSON.parse(readFileSync(path, "utf8")) as Dataset;
@@ -261,8 +264,8 @@ async function main() {
   }
 
   // --- Starter activities: Word Search ------------------------------------------
-  // Difficulty drives how many words are placed (3 / 5 / 8), so the three starters use
-  // the phonemes with the largest word pools to guarantee the hard one can be filled.
+  // The grid is a fixed 8x8, so difficulty is only ever how many words are hidden in it
+  // (3 / 5 / 8) and the phonemes with the largest pools take the hardest activities.
   const richestConfigs = [...dataset.wordSearchConfigs]
     .sort((a, b) => b.words.length - a.words.length || a.phoneme.ipa.localeCompare(b.phoneme.ipa))
     .slice(0, DIFFICULTIES.length);
@@ -273,33 +276,86 @@ async function main() {
       [difficulty, richestConfigs[DIFFICULTIES.length - 1 - index]] as const,
   );
 
-  for (const [difficulty, config] of wordSearchPairs) {
-    if (!config) continue;
-
-    const wordListId = listIdByPhonemeIpa.get(config.phoneme.ipa)!;
-
-    const data = {
-      name: `${difficulty} ${config.phoneme.ipa} Word Search`,
+  /** Word Search names are free-form, so the name is the natural key. */
+  async function upsertWordSearch(data: {
+    name: string;
+    difficulty: Difficulty;
+    wordListId: number;
+    ipa: string;
+    wordCount: number;
+  }) {
+    const row = {
+      name: data.name,
       type: "word_search",
-      difficulty,
-      wordListId,
-      targetPhonemeId: phonemeIdByIpa.get(config.phoneme.ipa) ?? null,
-      gridSize: config.size,
+      difficulty: data.difficulty,
+      wordListId: data.wordListId,
+      targetPhonemeId: phonemeIdByIpa.get(data.ipa) ?? null,
+      gridSize: WORD_SEARCH_SIZE,
       seed: DEFAULT_SEED,
-      wordCount: Math.min(WORD_SEARCH_COUNTS[difficulty], config.words.length),
+      wordCount: data.wordCount,
     };
 
-    // One activity per difficulty by construction, so difficulty is the natural key.
     const existing = await prisma.activity.findFirst({
-      where: { type: "word_search", difficulty },
+      where: { type: "word_search", name: data.name },
       select: { id: true },
     });
 
     if (existing) {
-      await prisma.activity.update({ where: { id: existing.id }, data });
+      await prisma.activity.update({ where: { id: existing.id }, data: row });
     } else {
-      await prisma.activity.create({ data });
+      await prisma.activity.create({ data: row });
     }
+  }
+
+  // Earlier seeds named these "<difficulty> <ipa> Word Search" and keyed them by
+  // difficulty. Drop those rows so re-seeding an existing database does not leave a
+  // duplicate set behind; anything a user saved has a name of their own.
+  await prisma.activity.deleteMany({
+    where: { type: "word_search", name: { endsWith: " Word Search" } },
+  });
+
+  for (const [difficulty, config] of wordSearchPairs) {
+    if (!config) continue;
+
+    await upsertWordSearch({
+      name: `${config.phoneme.label} sound hunt (${difficulty})`,
+      difficulty,
+      wordListId: listIdByPhonemeIpa.get(config.phoneme.ipa)!,
+      ipa: config.phoneme.ipa,
+      wordCount: Math.min(WORD_SEARCH_COUNTS[difficulty], config.words.length),
+    });
+  }
+
+  // One sound, two activities: a shorter warm-up list alongside the full one, which is
+  // what naming an activity is for — the same target sound with different words.
+  const [richest] = richestConfigs;
+
+  if (richest && richest.words.length > WORD_SEARCH_COUNTS.easy) {
+    const warmUpWords = richest.words
+      .slice(0, WORD_SEARCH_COUNTS.easy)
+      .map((word) => word.english);
+    const warmUpListId = await upsertWordList(
+      `${richest.phoneme.ipa} warm-up`,
+      `A short ${richest.phoneme.ipa} list for a first pass at the sound.`,
+      warmUpWords,
+      phonemeIdByIpa.get(richest.phoneme.ipa) ?? null,
+    );
+
+    await upsertWordSearch({
+      name: `${richest.phoneme.label} warm-up`,
+      difficulty: "easy",
+      wordListId: warmUpListId,
+      ipa: richest.phoneme.ipa,
+      wordCount: warmUpWords.length,
+    });
+
+    await upsertWordSearch({
+      name: `${richest.phoneme.label} sound review`,
+      difficulty: "medium",
+      wordListId: listIdByPhonemeIpa.get(richest.phoneme.ipa)!,
+      ipa: richest.phoneme.ipa,
+      wordCount: Math.min(WORD_SEARCH_COUNTS.medium, richest.words.length),
+    });
   }
 
   const [phonemes, words, wordPhonemes, wordLists, wordListItems, activities] =

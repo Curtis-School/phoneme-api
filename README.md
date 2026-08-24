@@ -114,9 +114,16 @@ A saved Wordle or Word Search configuration. Many may point at the same word lis
 | ------ | ---- | ----------- |
 | `GET` | `/api/activities` | Saved configurations. `?type=` `?difficulty=` `?wordListId=`. |
 | `POST` | `/api/activities` | Save a new configuration. `201`. |
+| `GET` | `/api/activities/:id` | One saved configuration. |
+| `PATCH` | `/api/activities/:id` | Edit one in place. `type` is immutable. |
 | `DELETE` | `/api/activities/:id` | `204`. The word list it points at is untouched. |
 
 The body is discriminated on `type`, because the two activities need different settings.
+
+`PATCH` takes any subset of the fields except `type`. The patch is merged onto the stored
+row and revalidated as a whole, so a partial write can never leave a Wordle without its
+`wordLength`, or a Word Search asking for more words than its list holds.
+
 Both accept optional `symbolDisplay` (`ipa` | `english`), `showTooltips` and `theme`.
 
 ```jsonc

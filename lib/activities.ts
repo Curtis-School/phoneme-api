@@ -86,7 +86,45 @@ export function serializeActivity(activity: ActivityRow) {
   };
 }
 
-export async function assertActivityIsSatisfiable(input: ActivityCreateInput) {
+/**
+ * The stored row in create-shaped form, so a PATCH can be merged onto it and the whole
+ * thing revalidated. `targetPhoneme` comes back as its IPA symbol, the same way it went in.
+ */
+export function toCreateInput(activity: ActivityRow) {
+  const shared = {
+    name: activity.name,
+    difficulty: activity.difficulty,
+    wordListId: activity.wordListId,
+    symbolDisplay: activity.symbolDisplay,
+    showTooltips: activity.showTooltips,
+    theme: activity.theme,
+  };
+
+  if (activity.type === "wordle") {
+    return {
+      ...shared,
+      type: activity.type,
+      maxGuesses: activity.maxGuesses,
+      wordLength: activity.wordLength,
+      wordId: activity.wordId,
+    };
+  }
+
+  return {
+    ...shared,
+    type: activity.type,
+    targetPhoneme: activity.targetPhoneme?.ipa,
+    gridSize: activity.gridSize,
+    seed: activity.seed,
+    wordCount: activity.wordCount,
+  };
+}
+
+export async function assertActivityIsSatisfiable(
+  input: ActivityCreateInput,
+  /** The activity being updated, so a PATCH does not read itself as its own duplicate. */
+  ignoreId?: number,
+) {
   const wordList = await prisma.wordList.findUnique({
     where: { id: input.wordListId },
     select: { id: true, name: true, _count: { select: { items: true } } },
@@ -147,6 +185,7 @@ export async function assertActivityIsSatisfiable(input: ActivityCreateInput) {
     // the same word in a different theme is a deliberate
     const duplicate = await prisma.activity.findFirst({
       where: {
+        id: ignoreId === undefined ? undefined : { not: ignoreId },
         type: "wordle",
         wordListId: wordList.id,
         difficulty: input.difficulty,

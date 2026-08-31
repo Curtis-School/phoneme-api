@@ -1,4 +1,6 @@
+import type { Prisma } from "@/lib/generated/prisma/client";
 import { ApiError } from "@/lib/http";
+import type { PhonemeRow } from "@/lib/phonemes";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -22,16 +24,24 @@ type WordWithPhonemes = {
   english: string;
   createdAt: Date;
   updatedAt: Date;
-  phonemes: {
-    phoneme: {
-      id: number;
-      ipa: string;
-      label: string;
-      example: string;
-      english: string;
-    };
-  }[];
+  phonemes: { phoneme: PhonemeRow }[];
 };
+
+/**
+ * Matches words whose phoneme sequence is exactly `count` long.
+ *
+ * Positions are contiguous from zero, so a word of length N has a phoneme at N-1 and
+ * nothing at N. Expressing it this way keeps the filter in the database — Prisma cannot
+ * filter on a relation count — and keeps the three callers that need it in step.
+ */
+export function hasPhonemeCount(count: number): Prisma.WordWhereInput {
+  return {
+    AND: [
+      { phonemes: { some: { position: count - 1 } } },
+      { phonemes: { none: { position: count } } },
+    ],
+  };
+}
 
 /**
  * Flattens the join rows away so the API returns `phonemes: Phoneme[]` — the same shape

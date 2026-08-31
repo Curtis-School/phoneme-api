@@ -1,13 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { ok, withErrorHandling } from "@/lib/http";
+import { ok, parseQuery, withErrorHandling } from "@/lib/http";
 import { phonemeListQuerySchema } from "@/lib/validation";
 
 /** GET /api/phonemes — the full inventory, optionally filtered by `?search=`. */
 export const GET = withErrorHandling(async (request: Request) => {
-  const { searchParams } = new URL(request.url);
-  const { search } = phonemeListQuerySchema.parse({
-    search: searchParams.get("search") ?? undefined,
-  });
+  const { search } = parseQuery(request, phonemeListQuerySchema);
 
   const phonemes = await prisma.phoneme.findMany({
     where: search

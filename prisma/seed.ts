@@ -307,13 +307,6 @@ async function main() {
     }
   }
 
-  // Earlier seeds named these "<difficulty> <ipa> Word Search" and keyed them by
-  // difficulty. Drop those rows so re-seeding an existing database does not leave a
-  // duplicate set behind; anything a user saved has a name of their own.
-  await prisma.activity.deleteMany({
-    where: { type: "word_search", name: { endsWith: " Word Search" } },
-  });
-
   for (const [difficulty, config] of wordSearchPairs) {
     if (!config) continue;
 

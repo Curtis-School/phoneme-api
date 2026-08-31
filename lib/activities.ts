@@ -1,7 +1,9 @@
+import type { Prisma } from "@/lib/generated/prisma/client";
 import { ApiError, plural } from "@/lib/http";
+import { toPhonemeDto, type PhonemeRow } from "@/lib/phonemes";
 import { prisma } from "@/lib/prisma";
 import { resolveTargetPhonemeId } from "@/lib/word-lists";
-import { toPhonemeDto, type PhonemeDto } from "@/lib/generate";
+import { hasPhonemeCount, wordInclude } from "@/lib/words";
 import type { ActivityCreateInput } from "@/lib/validation";
 
 /**
@@ -11,9 +13,7 @@ import type { ActivityCreateInput } from "@/lib/validation";
 export const activityInclude = {
   targetPhoneme: true,
   wordList: { select: { id: true, name: true, _count: { select: { items: true } } } },
-  word: {
-    include: { phonemes: { orderBy: { position: "asc" }, include: { phoneme: true } } },
-  },
+  word: { include: wordInclude },
 } as const;
 
 type ActivityRow = {
@@ -33,10 +33,19 @@ type ActivityRow = {
   theme: string;
   createdAt: Date;
   updatedAt: Date;
-  targetPhoneme: { ipa: string; label: string; example: string; english: string } | null;
+  targetPhoneme: PhonemeRow | null;
   wordList: { id: number; name: string; _count: { items: number } };
-  word: { english: string; phonemes: { phoneme: PhonemeDto & { id: number } }[] } | null;
+  word: { english: string; phonemes: { phoneme: PhonemeRow }[] } | null;
 };
+
+/** Output settings with their defaults applied — the same values a write would store. */
+function outputSettings(input: ActivityCreateInput) {
+  return {
+    symbolDisplay: input.symbolDisplay ?? "ipa",
+    showTooltips: input.showTooltips ?? true,
+    theme: input.theme ?? "light",
+  };
+}
 
 /**
  * Returns only the settings that apply to the activity's own type.
@@ -120,6 +129,34 @@ export function toCreateInput(activity: ActivityRow) {
   };
 }
 
+/**
+ * Refuses a second activity that would be identical to one already saved.
+ *
+ * Both types are checked, on the settings that actually change the generated puzzle.
+ * `name` is deliberately excluded: it carries no uniqueness constraint, so two names for
+ * one configuration is exactly the case this catches.
+ */
+async function assertNoDuplicate(
+  where: Prisma.ActivityWhereInput,
+  ignoreId: number | undefined,
+  label: string,
+) {
+  const duplicate = await prisma.activity.findFirst({
+    // A PATCH must not read the row it is updating as its own duplicate.
+    where: { ...where, id: ignoreId === undefined ? undefined : { not: ignoreId } },
+    select: { id: true, name: true },
+  });
+
+  if (duplicate) {
+    throw new ApiError(
+      409,
+      "CONFLICT",
+      `This exact ${label} configuration is already saved as "${duplicate.name}".`,
+      { activityId: duplicate.id },
+    );
+  }
+}
+
 export async function assertActivityIsSatisfiable(
   input: ActivityCreateInput,
   /** The activity being updated, so a PATCH does not read itself as its own duplicate. */
@@ -142,10 +179,7 @@ export async function assertActivityIsSatisfiable(
     const eligible = await prisma.word.count({
       where: {
         listItems: { some: { wordListId: wordList.id } },
-        AND: [
-          { phonemes: { some: { position: input.wordLength - 1 } } },
-          { phonemes: { none: { position: input.wordLength } } },
-        ],
+        ...hasPhonemeCount(input.wordLength),
       },
     });
 
@@ -163,10 +197,7 @@ export async function assertActivityIsSatisfiable(
         where: {
           id: input.wordId,
           listItems: { some: { wordListId: wordList.id } },
-          AND: [
-            { phonemes: { some: { position: input.wordLength - 1 } } },
-            { phonemes: { none: { position: input.wordLength } } },
-          ],
+          ...hasPhonemeCount(input.wordLength),
         },
         select: { id: true },
       });
@@ -181,30 +212,19 @@ export async function assertActivityIsSatisfiable(
       }
     }
 
-    //Theme is included in the comparison rather than ignored:
-    // the same word in a different theme is a deliberate
-    const duplicate = await prisma.activity.findFirst({
-      where: {
-        id: ignoreId === undefined ? undefined : { not: ignoreId },
+    // Theme is part of the comparison rather than ignored: the same word presented in a
+    // different theme is a deliberately different activity, not an accidental duplicate.
+    await assertNoDuplicate(
+      {
         type: "wordle",
         wordListId: wordList.id,
         difficulty: input.difficulty,
         wordId: input.wordId ?? null,
-        symbolDisplay: input.symbolDisplay ?? "ipa",
-        showTooltips: input.showTooltips ?? true,
-        theme: input.theme ?? "light",
+        ...outputSettings(input),
       },
-      select: { id: true, name: true },
-    });
-
-    if (duplicate) {
-      throw new ApiError(
-        409,
-        "CONFLICT",
-        `This exact Wordle configuration is already saved as "${duplicate.name}".`,
-        { activityId: duplicate.id },
-      );
-    }
+      ignoreId,
+      "Wordle",
+    );
 
     return;
   }
@@ -217,6 +237,23 @@ export async function assertActivityIsSatisfiable(
       { wordListId: wordList.id, available: wordList._count.items, requested: input.wordCount },
     );
   }
+
+  // `seed` is included for the same reason as `theme` above — a different seed is a
+  // different grid, so it is a different activity rather than a duplicate.
+  await assertNoDuplicate(
+    {
+      type: "word_search",
+      wordListId: wordList.id,
+      difficulty: input.difficulty,
+      targetPhonemeId: await resolveTargetPhonemeId(input.targetPhoneme),
+      gridSize: input.gridSize,
+      wordCount: input.wordCount,
+      seed: input.seed ?? null,
+      ...outputSettings(input),
+    },
+    ignoreId,
+    "Word Search",
+  );
 }
 
 /** Maps validated input onto the flat column set the table stores. */
@@ -226,9 +263,7 @@ export async function toActivityData(input: ActivityCreateInput) {
     type: input.type,
     difficulty: input.difficulty,
     wordListId: input.wordListId,
-    symbolDisplay: input.symbolDisplay ?? "ipa",
-    showTooltips: input.showTooltips ?? true,
-    theme: input.theme ?? "light",
+    ...outputSettings(input),
   };
 
   if (input.type === "wordle") {

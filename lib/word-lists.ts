@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/http";
+import type { PhonemeRow } from "@/lib/phonemes";
 import { prisma } from "@/lib/prisma";
 import { serializeWord, wordInclude } from "@/lib/words";
 
@@ -17,19 +18,11 @@ export const wordListDetailInclude = {
   },
 } as const;
 
-type Phoneme = {
-  id: number;
-  ipa: string;
-  label: string;
-  example: string;
-  english: string;
-};
-
 type WordListBase = {
   id: number;
   name: string;
   description: string | null;
-  targetPhoneme: Phoneme | null;
+  targetPhoneme: PhonemeRow | null;
   createdAt: Date;
   updatedAt: Date;
 };

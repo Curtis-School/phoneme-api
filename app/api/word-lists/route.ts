@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/lib/generated/prisma/client";
-import { created, ok, parseJsonBody, withErrorHandling } from "@/lib/http";
+import { created, ok, parseJsonBody, parseQuery, withErrorHandling } from "@/lib/http";
 import { resolveWordIds } from "@/lib/words";
 import {
   resolveTargetPhonemeId,
@@ -17,11 +17,7 @@ import { wordListCreateSchema, wordListQuerySchema } from "@/lib/validation";
  * Summaries only — name, target sound and counts. Fetch a single list to get its words.
  */
 export const GET = withErrorHandling(async (request: Request) => {
-  const { searchParams } = new URL(request.url);
-  const { search, phoneme } = wordListQuerySchema.parse({
-    search: searchParams.get("search") ?? undefined,
-    phoneme: searchParams.get("phoneme") ?? undefined,
-  });
+  const { search, phoneme } = parseQuery(request, wordListQuerySchema);
 
   const filters: Prisma.WordListWhereInput[] = [];
 

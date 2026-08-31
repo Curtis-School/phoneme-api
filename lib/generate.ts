@@ -1,23 +1,11 @@
 import { ApiError, plural } from "@/lib/http";
+import { toPhonemeDto, type PhonemeDto } from "@/lib/phonemes";
 import { prisma } from "@/lib/prisma";
+import { wordInclude } from "@/lib/words";
 
 /**
  * Resolves a saved activity into the exact config shape the frontend already consumes. 
  */
-
-/** The frontend's `Phoneme`: no id, no timestamps. */
-export type PhonemeDto = {
-  ipa: string;
-  label: string;
-  example: string;
-  english: string;
-};
-
-type PhonemeRow = PhonemeDto & { id: number };
-
-export function toPhonemeDto({ ipa, label, example, english }: PhonemeRow): PhonemeDto {
-  return { ipa, label, example, english };
-}
 
 /**
  * Same PRNG the frontend uses to lay out a word-search grid.
@@ -57,11 +45,7 @@ const activityForGenerate = {
       name: true,
       items: {
         orderBy: { position: "asc" },
-        include: {
-          word: {
-            include: { phonemes: { orderBy: { position: "asc" }, include: { phoneme: true } } },
-          },
-        },
+        include: { word: { include: wordInclude } },
       },
     },
   },

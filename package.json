@@ -19,13 +19,10 @@
     "@prisma/client": "^7.9.1",
     "next": "16.3.0",
     "prisma": "^7.9.1",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^20",
-    "@types/react": "^19",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",

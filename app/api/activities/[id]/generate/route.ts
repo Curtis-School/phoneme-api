@@ -1,4 +1,4 @@
-import { ok, withErrorHandling } from "@/lib/http";
+import { ok, parseQuery, withErrorHandling } from "@/lib/http";
 import {
   buildWordleConfig,
   buildWordSearchConfig,
@@ -20,11 +20,7 @@ type Context = RouteContext<"/api/activities/[id]/generate">;
 export const GET = withErrorHandling(async (request: Request, ctx: Context) => {
   const id = await readIdParam(ctx.params);
 
-  const { searchParams } = new URL(request.url);
-  const { wordId, seed } = generateQuerySchema.parse({
-    wordId: searchParams.get("wordId") ?? undefined,
-    seed: searchParams.get("seed") ?? undefined,
-  });
+  const { wordId, seed } = parseQuery(request, generateQuerySchema);
 
   const activity = await loadActivityForGenerate(id);
 

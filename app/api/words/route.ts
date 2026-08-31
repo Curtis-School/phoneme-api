@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/lib/generated/prisma/client";
-import { created, ok, parseJsonBody, withErrorHandling } from "@/lib/http";
-import { resolvePhonemeIds, serializeWord, wordInclude } from "@/lib/words";
+import { created, ok, parseJsonBody, parseQuery, withErrorHandling } from "@/lib/http";
+import { hasPhonemeCount, resolvePhonemeIds, serializeWord, wordInclude } from "@/lib/words";
 import { wordCreateSchema, wordsQuerySchema } from "@/lib/validation";
 
 /**
@@ -11,12 +11,7 @@ import { wordCreateSchema, wordsQuerySchema } from "@/lib/validation";
  * (exact phoneme count). They combine, so `?phoneme=/s/&length=3` is valid.
  */
 export const GET = withErrorHandling(async (request: Request) => {
-  const { searchParams } = new URL(request.url);
-  const { search, phoneme, length } = wordsQuerySchema.parse({
-    search: searchParams.get("search") ?? undefined,
-    phoneme: searchParams.get("phoneme") ?? undefined,
-    length: searchParams.get("length") ?? undefined,
-  });
+  const { search, phoneme, length } = parseQuery(request, wordsQuerySchema);
 
   // Collected as a list rather than merged into one object: several filters constrain the
   // same `phonemes` relation, and merging them would silently overwrite each other.
@@ -31,11 +26,7 @@ export const GET = withErrorHandling(async (request: Request) => {
   }
 
   if (length !== undefined) {
-    // Positions are contiguous from zero, so a word of length N has a phoneme at N-1 and
-    // nothing at N. Expressing it this way keeps the filter in the database — Prisma
-    // cannot filter on a relation count.
-    filters.push({ phonemes: { some: { position: length - 1 } } });
-    filters.push({ phonemes: { none: { position: length } } });
+    filters.push(hasPhonemeCount(length));
   }
 
   const words = await prisma.word.findMany({

@@ -33,7 +33,7 @@ export function noContent() {
   return new Response(null, { status: 204 });
 }
 
-export function fail(
+function fail(
   status: number,
   code: ErrorCode,
   message: string,
@@ -67,6 +67,17 @@ export class ApiError extends Error {
   static inUse(message: string, details?: unknown) {
     return new ApiError(409, "IN_USE", message, details);
   }
+}
+
+/**
+ * Reads and validates a URL's query string.
+ *
+ * Every key present is handed to the schema, which strips whatever it does not declare —
+ * so a route lists its filters once, in its Zod schema, rather than also spelling out a
+ * `searchParams.get(...) ?? undefined` line per parameter.
+ */
+export function parseQuery<T extends z.ZodType>(request: Request, schema: T): z.infer<T> {
+  return schema.parse(Object.fromEntries(new URL(request.url).searchParams));
 }
 
 /** Reads and validates a JSON request body, distinguishing malformed JSON from invalid data. */

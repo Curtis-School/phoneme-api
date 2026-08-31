@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { created, ok, parseJsonBody, withErrorHandling } from "@/lib/http";
+import { created, ok, parseJsonBody, parseQuery, withErrorHandling } from "@/lib/http";
 import {
   activityInclude,
   assertActivityIsSatisfiable,
@@ -10,12 +10,7 @@ import { activityCreateSchema, activityQuerySchema } from "@/lib/validation";
 
 /** GET /api/activities — saved configurations, filtered by `?type=`, `?difficulty=`, `?wordListId=`. */
 export const GET = withErrorHandling(async (request: Request) => {
-  const { searchParams } = new URL(request.url);
-  const { type, difficulty, wordListId } = activityQuerySchema.parse({
-    type: searchParams.get("type") ?? undefined,
-    difficulty: searchParams.get("difficulty") ?? undefined,
-    wordListId: searchParams.get("wordListId") ?? undefined,
-  });
+  const { type, difficulty, wordListId } = parseQuery(request, activityQuerySchema);
 
   const activities = await prisma.activity.findMany({
     where: { type, difficulty, wordListId },

@@ -133,6 +133,32 @@ export const activityCreateSchema = z.discriminatedUnion("type", [
     .strict(),
 ]);
 
+/**
+ * A partial activity. `type` is immutable, so a patch is merged onto the stored row and
+ * re-validated through `activityCreateSchema` — one set of rules for both writes.
+ */
+export const activityUpdateSchema = z
+  .object({
+    name: text(80),
+    difficulty: z.enum(DIFFICULTIES),
+    wordListId: z.number().int().positive(),
+    symbolDisplay: z.enum(SYMBOL_DISPLAYS),
+    showTooltips: z.boolean(),
+    theme: z.enum(THEMES),
+    maxGuesses: z.number().int().min(1).max(12),
+    wordLength: z.number().int().min(1).max(12),
+    wordId: z.number().int().positive().nullable(),
+    targetPhoneme: text(16),
+    gridSize: z.number().int().min(4).max(20),
+    seed: z.number().int().nullable(),
+    wordCount: z.number().int().min(1).max(50),
+  })
+  .partial()
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, {
+    error: "Provide at least one field to update.",
+  });
+
 export const activityQuerySchema = z.object({
   type: z.enum(ACTIVITY_TYPES).optional(),
   difficulty: z.enum(DIFFICULTIES).optional(),

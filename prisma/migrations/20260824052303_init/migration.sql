@@ -13,7 +13,6 @@ CREATE TABLE "Phoneme" (
 CREATE TABLE "Word" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "english" TEXT NOT NULL,
-    "hint" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
@@ -58,6 +57,7 @@ CREATE TABLE "Activity" (
     "wordListId" INTEGER NOT NULL,
     "maxGuesses" INTEGER,
     "wordLength" INTEGER,
+    "wordId" INTEGER,
     "targetPhonemeId" INTEGER,
     "gridSize" INTEGER,
     "seed" INTEGER,
@@ -68,17 +68,8 @@ CREATE TABLE "Activity" (
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "Activity_wordListId_fkey" FOREIGN KEY ("wordListId") REFERENCES "WordList" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT "Activity_targetPhonemeId_fkey" FOREIGN KEY ("targetPhonemeId") REFERENCES "Phoneme" ("id") ON DELETE SET NULL ON UPDATE CASCADE
-);
-
--- CreateTable
-CREATE TABLE "ActivityExport" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "activityId" INTEGER NOT NULL,
-    "filename" TEXT NOT NULL,
-    "seed" INTEGER,
-    "generatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "ActivityExport_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "Activity" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT "Activity_targetPhonemeId_fkey" FOREIGN KEY ("targetPhonemeId") REFERENCES "Phoneme" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT "Activity_wordId_fkey" FOREIGN KEY ("wordId") REFERENCES "Word" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- CreateIndex
@@ -115,7 +106,4 @@ CREATE INDEX "Activity_wordListId_idx" ON "Activity"("wordListId");
 CREATE INDEX "Activity_targetPhonemeId_idx" ON "Activity"("targetPhonemeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Activity_name_type_key" ON "Activity"("name", "type");
-
--- CreateIndex
-CREATE INDEX "ActivityExport_activityId_idx" ON "ActivityExport"("activityId");
+CREATE INDEX "Activity_wordId_idx" ON "Activity"("wordId");
